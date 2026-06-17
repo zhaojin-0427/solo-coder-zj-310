@@ -67,12 +67,12 @@ export default function FittingsPage() {
     }
   };
 
-  const handleApprove = async (record: FittingRecord) => {
+  const handleApprove = async (record: FittingRecord, feedback?: string) => {
     if (!confirm('确定通过此次试穿？确认后可进入制作阶段。')) return;
     try {
       await fittingApi.updateStatus(record.id, {
         status: 'approved',
-        customerFeedback: feedbackText || '客户确认满意',
+        customerFeedback: feedback || feedbackText || '客户确认满意',
       });
       setFeedbackText('');
       fetchFittings();
@@ -81,16 +81,17 @@ export default function FittingsPage() {
     }
   };
 
-  const handleRework = async (record: FittingRecord) => {
-    if (!feedbackText.trim()) {
+  const handleRework = async (record: FittingRecord, reason?: string) => {
+    const text = reason || feedbackText;
+    if (!text.trim()) {
       alert('请填写返工说明');
       return;
     }
     try {
       await fittingApi.updateStatus(record.id, {
         status: 'rework_needed',
-        customerFeedback: feedbackText,
-        reworkSuggestions: feedbackText.split(/[。,，\n]/).filter(Boolean).slice(0, 5),
+        customerFeedback: text,
+        reworkSuggestions: text.split(/[。,，\n]/).filter(Boolean).slice(0, 5),
       });
       setFeedbackText('');
       fetchFittings();
@@ -286,8 +287,7 @@ export default function FittingsPage() {
                             <button
                               className="btn btn-sm btn-success"
                               onClick={() => {
-                                setFeedbackText('');
-                                handleApprove(record);
+                                handleApprove(record, '');
                               }}
                             >
                               通过
@@ -296,9 +296,8 @@ export default function FittingsPage() {
                               className="btn btn-sm btn-warning"
                               onClick={() => {
                                 const reason = prompt('请填写返工原因：');
-                                if (reason) {
-                                  setFeedbackText(reason);
-                                  handleRework(record);
+                                if (reason && reason.trim()) {
+                                  handleRework(record, reason);
                                 }
                               }}
                             >

@@ -53,11 +53,21 @@ router.put('/:id', (req: Request, res: Response) => {
 });
 
 router.delete('/:id', (req: Request, res: Response) => {
-  const idx = store.dolls.findIndex(d => d.id === req.params.id);
+  const id = req.params.id;
+  const idx = store.dolls.findIndex(d => d.id === id);
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '娃体模板不存在' });
   }
-  store.dolls.splice(idx, 1);
+  const check = store.checkDollReferences(id);
+  if (check.hasReferences) {
+    const refNames = check.references.map(r => `${r.type} ${r.name}`).join('、');
+    return res.status(400).json({
+      success: false,
+      message: `该娃体模板已被引用，无法删除：${refNames}`,
+      references: check.references,
+    });
+  }
+  store.removeDoll(id);
   res.json({ success: true, message: '已删除' });
 });
 

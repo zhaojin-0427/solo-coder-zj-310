@@ -59,7 +59,9 @@ export default function PatternsPage() {
       setShowModal(false);
       fetchTasks();
       resetForm();
-    } catch (e) {
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || '创建打版任务失败，请稍后重试';
+      alert(msg);
       console.error(e);
     }
   };

@@ -39,6 +39,14 @@ router.get('/:id', (req: Request, res: Response) => {
 });
 
 router.post('/', (req: Request, res: Response) => {
+  const { orderId } = req.body;
+  if (!orderId) {
+    return res.status(400).json({ success: false, message: '请选择关联订单' });
+  }
+  const canCreate = store.canCreatePattern(orderId);
+  if (!canCreate.allowed) {
+    return res.status(400).json({ success: false, message: canCreate.reason });
+  }
   const now = new Date().toISOString();
   const newTask: PatternTask = {
     id: `pattern-${uuidv4().slice(0, 8)}`,

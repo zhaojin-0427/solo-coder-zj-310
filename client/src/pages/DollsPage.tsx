@@ -86,7 +86,9 @@ export default function DollsPage() {
     try {
       await dollApi.remove(id);
       fetchDolls();
-    } catch (e) {
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || '删除失败';
+      alert(msg);
       console.error(e);
     }
   };
