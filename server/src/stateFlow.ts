@@ -77,6 +77,8 @@ export interface StageInfo {
   blockReason?: string;
   patternStatus?: string;
   fittingStatus?: string;
+  canDirectAdvance: boolean;
+  advanceBlockReason?: string;
 }
 
 export function validateOrderTransition(
@@ -90,6 +92,153 @@ export function validateOrderTransition(
       message: `订单状态流转非法：无法从「${ORDER_STATUS_LABELS_CN[currentStatus]}」直接变更为「${ORDER_STATUS_LABELS_CN[targetStatus]}」。请按业务流程逐步推进。`,
     };
   }
+  return { success: true };
+}
+
+const DIRECT_ALLOWED_TRANSITIONS: Array<[OrderStatus, OrderStatus]> = [
+  ['pending', 'confirmed'],
+  ['fabric_prep', 'sewing'],
+  ['customer_approved', 'shipping'],
+  ['shipping', 'completed'],
+];
+
+export function isDirectAllowedTransition(
+  currentStatus: OrderStatus,
+  targetStatus: OrderStatus
+): boolean {
+  return DIRECT_ALLOWED_TRANSITIONS.some(
+    ([from, to]) => from === currentStatus && to === targetStatus
+  );
+}
+
+export function validateOrderTransitionWithBusinessCheck(
+  orderId: string,
+  targetStatus: OrderStatus
+): TransitionResult {
+  const order = store.getOrderById(orderId);
+  if (!order) {
+    return { success: false, message: '订单不存在' };
+  }
+
+  const currentStatus = order.status;
+
+  const basicValidation = validateOrderTransition(currentStatus, targetStatus);
+  if (!basicValidation.success) {
+    return basicValidation;
+  }
+
+  if (isDirectAllowedTransition(currentStatus, targetStatus)) {
+    return { success: true };
+  }
+
+  const patternTasks = store.patternTasks.filter(p => p.orderId === orderId);
+  const fittingRecords = store.fittingRecords.filter(f => f.orderId === orderId);
+  const latestPattern = patternTasks.sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  )[0];
+  const latestFitting = fittingRecords.sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  )[0];
+
+  if (currentStatus === 'confirmed' && targetStatus === 'pattern_making') {
+    if (patternTasks.length === 0) {
+      return {
+        success: false,
+        message: '请先在打版进度页面创建打版任务，订单将自动进入打版阶段。',
+      };
+    }
+    return { success: true };
+  }
+
+  if (currentStatus === 'pattern_making' && targetStatus === 'fabric_prep') {
+    if (!latestPattern) {
+      return {
+        success: false,
+        message: '未找到关联的打版任务，请先创建打版任务。',
+      };
+    }
+    if (latestPattern.status === 'pending') {
+      return {
+        success: false,
+        message: '打版任务尚未开始，请先将打版任务设为进行中。',
+      };
+    }
+    if (latestPattern.status === 'in_progress') {
+      return {
+        success: false,
+        message: '打版任务进行中，请先完成打版并审核通过后，再进入裁料阶段。',
+      };
+    }
+    if (latestPattern.status === 'completed') {
+      return {
+        success: false,
+        message: '打版任务已完成但尚未审核，请在打版进度页审核通过后，订单将自动进入裁料阶段。',
+      };
+    }
+    if (latestPattern.status === 'approved') {
+      return { success: true };
+    }
+    return { success: false, message: '打版任务状态异常，无法进入裁料阶段。' };
+  }
+
+  if (currentStatus === 'sewing' && targetStatus === 'fitting') {
+    if (fittingRecords.length === 0) {
+      return {
+        success: false,
+        message: '请在试穿确认页面创建试穿记录并上传照片，订单将自动进入试穿阶段。',
+      };
+    }
+    const hasPhotoTaken = fittingRecords.some(f => f.status === 'photo_taken');
+    if (!hasPhotoTaken) {
+      return {
+        success: false,
+        message: '请先上传试穿照片，订单将自动进入试穿阶段。',
+      };
+    }
+    return { success: true };
+  }
+
+  if (currentStatus === 'fitting' && targetStatus === 'customer_approved') {
+    if (!latestFitting) {
+      return {
+        success: false,
+        message: '未找到关联的试穿记录，请先创建试穿记录。',
+      };
+    }
+    if (latestFitting.status === 'pending') {
+      return {
+        success: false,
+        message: '试穿记录尚未上传照片，请先上传试穿照片。',
+      };
+    }
+    if (latestFitting.status === 'photo_taken') {
+      return {
+        success: false,
+        message: '试穿照片已上传，请提交客户审核后等待客户确认通过。',
+      };
+    }
+    if (latestFitting.status === 'customer_review') {
+      return {
+        success: false,
+        message: '客户正在审核中，请等待客户确认通过后，订单将自动进入客户确认阶段。',
+      };
+    }
+    if (latestFitting.status === 'rework_needed') {
+      return {
+        success: false,
+        message: '试穿需返工，请调整版型后重新试穿。',
+      };
+    }
+    if (latestFitting.status === 'approved') {
+      return { success: true };
+    }
+    return { success: false, message: '试穿记录状态异常，无法进入客户确认阶段。' };
+  }
+
+  if (targetStatus === 'cancelled') {
+    return { success: true };
+  }
+
   return { success: true };
 }
 
@@ -158,6 +307,7 @@ export function getStageInfo(orderId: string): StageInfo {
       stage: 'cancelled',
       stageLabel: '订单不存在',
       blockReason: '未找到该订单',
+      canDirectAdvance: false,
     };
   }
 
@@ -235,6 +385,19 @@ export function getStageInfo(orderId: string): StageInfo {
       break;
   }
 
+  let canDirectAdvance = false;
+  let advanceBlockReason: string | undefined;
+
+  const nextStatuses = ORDER_VALID_TRANSITIONS[order.status] || [];
+  const nextNormalStatus = nextStatuses.find(s => s !== 'cancelled');
+  if (nextNormalStatus) {
+    const checkResult = validateOrderTransitionWithBusinessCheck(orderId, nextNormalStatus);
+    canDirectAdvance = checkResult.success;
+    if (!checkResult.success) {
+      advanceBlockReason = checkResult.message;
+    }
+  }
+
   return {
     stage,
     stageLabel: STAGE_LABELS[stage],
@@ -242,6 +405,8 @@ export function getStageInfo(orderId: string): StageInfo {
     blockReason,
     patternStatus: latestPattern ? PATTERN_STATUS_LABELS_CN[latestPattern.status] : undefined,
     fittingStatus: latestFitting ? FITTING_STATUS_LABELS_CN[latestFitting.status] : undefined,
+    canDirectAdvance,
+    advanceBlockReason,
   };
 }
 

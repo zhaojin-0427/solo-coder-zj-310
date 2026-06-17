@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { store } from '../store';
 import { Order, OrderStatus, OrderStatusHistory, StageInfo } from '../types';
 import {
-  validateOrderTransition,
+  validateOrderTransitionWithBusinessCheck,
   addOrderHistory,
   getStageInfo,
   getStageTimeline,
@@ -28,6 +28,7 @@ router.get('/', (req: Request, res: Response) => {
   const enriched = filtered.map(o => ({
     ...o,
     dollName: store.getDollName(o.dollTemplateId),
+    stageInfo: getStageInfo(o.id),
   }));
   res.json({ success: true, data: enriched });
 });
@@ -117,8 +118,10 @@ router.patch('/:id/status', (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: '请指定目标状态' });
   }
 
-  const currentStatus = store.orders[idx].status;
-  const validation = validateOrderTransition(currentStatus, status as OrderStatus);
+  const validation = validateOrderTransitionWithBusinessCheck(
+    store.orders[idx].id,
+    status as OrderStatus
+  );
   if (!validation.success) {
     return res.status(400).json({ success: false, message: validation.message });
   }

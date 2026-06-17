@@ -69,6 +69,7 @@ export interface Order {
   updatedAt: string;
   history: OrderStatusHistory[];
   dollName?: string;
+  stageInfo?: StageInfo;
 }
 
 export interface PatternPiece {
@@ -192,6 +193,8 @@ export interface StageInfo {
   blockReason?: string;
   patternStatus?: string;
   fittingStatus?: string;
+  canDirectAdvance: boolean;
+  advanceBlockReason?: string;
 }
 
 export interface StageTimelineNode {

@@ -7,6 +7,7 @@ import {
   syncOrderStatusFromFitting,
   addOrderHistory,
   FITTING_STATUS_LABELS_CN,
+  ORDER_STATUS_LABELS_CN,
   getStageInfo,
 } from '../stateFlow';
 
@@ -53,10 +54,10 @@ router.post('/', (req: Request, res: Response) => {
     return res.status(404).json({ success: false, message: '订单不存在' });
   }
 
-  if (['pending', 'confirmed', 'completed', 'cancelled', 'shipping'].includes(order.status)) {
+  if (!['sewing', 'fitting'].includes(order.status)) {
     return res.status(400).json({
       success: false,
-      message: `订单当前状态为「${FITTING_STATUS_LABELS_CN[order.status as FittingStatus] || order.status}」，无法创建试穿记录`,
+      message: `订单当前状态为「${ORDER_STATUS_LABELS_CN[order.status as OrderStatus]}」，需在缝制阶段或试穿阶段才能创建试穿记录。`,
     });
   }
 

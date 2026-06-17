@@ -354,16 +354,29 @@ export default function OrdersPage() {
                           查看
                         </button>
                         {nextStatusFlow[order.status] && (
-                          <button
-                            className="btn btn-sm btn-primary"
-                            onClick={() => {
-                              if (confirm(`确定要${nextActionLabel[order.status]}吗？`)) {
-                                updateOrderStatus(order.id, nextStatusFlow[order.status], nextActionLabel[order.status]);
-                              }
-                            }}
-                          >
-                            {nextActionLabel[order.status]}
-                          </button>
+                          <>
+                            {order.stageInfo && !order.stageInfo.canDirectAdvance ? (
+                              <button
+                                className="btn btn-sm btn-primary"
+                                disabled
+                                title={order.stageInfo.advanceBlockReason || '当前状态无法直接推进'}
+                                style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                              >
+                                {nextActionLabel[order.status]}
+                              </button>
+                            ) : (
+                              <button
+                                className="btn btn-sm btn-primary"
+                                onClick={() => {
+                                  if (confirm(`确定要${nextActionLabel[order.status]}吗？`)) {
+                                    updateOrderStatus(order.id, nextStatusFlow[order.status], nextActionLabel[order.status]);
+                                  }
+                                }}
+                              >
+                                {nextActionLabel[order.status]}
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>
