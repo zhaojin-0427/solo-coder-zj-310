@@ -56,27 +56,40 @@ export default function FittingsPage() {
       return;
     }
     try {
-      await fittingApi.create({
+      const res = await fittingApi.create({
         ...formData,
         status: 'photo_taken',
       });
       setShowModal(false);
       fetchFittings();
-    } catch (e) {
+      if (res.data && res.data.stageInfo) {
+        alert(`试穿记录已创建，订单阶段已同步为：${res.data.stageInfo.stageLabel}`);
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || '创建失败，请稍后重试';
+      alert(msg);
       console.error(e);
     }
   };
 
   const handleApprove = async (record: FittingRecord, feedback?: string) => {
-    if (!confirm('确定通过此次试穿？确认后可进入制作阶段。')) return;
+    if (!confirm('确定通过此次试穿？确认后订单将自动进入客户确认阶段。')) return;
     try {
-      await fittingApi.updateStatus(record.id, {
+      const res = await fittingApi.updateStatus(record.id, {
         status: 'approved',
         customerFeedback: feedback || feedbackText || '客户确认满意',
       });
       setFeedbackText('');
       fetchFittings();
-    } catch (e) {
+      if (res.data && res.data.stageInfo) {
+        alert(`试穿已通过，订单阶段已同步为：${res.data.stageInfo.stageLabel}`);
+      }
+      if (detailRecord && detailRecord.id === record.id) {
+        setDetailRecord(null);
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || '操作失败';
+      alert(msg);
       console.error(e);
     }
   };
@@ -87,24 +100,38 @@ export default function FittingsPage() {
       alert('请填写返工说明');
       return;
     }
+    if (!confirm('确定标记为需要返工？订单将回退至打版阶段，打版任务返工次数将+1。')) return;
     try {
-      await fittingApi.updateStatus(record.id, {
+      const res = await fittingApi.updateStatus(record.id, {
         status: 'rework_needed',
         customerFeedback: text,
         reworkSuggestions: text.split(/[。,，\n]/).filter(Boolean).slice(0, 5),
       });
       setFeedbackText('');
       fetchFittings();
-    } catch (e) {
+      if (res.data && res.data.stageInfo) {
+        alert(`已标记为返工，订单阶段已同步为：${res.data.stageInfo.stageLabel}`);
+      }
+      if (detailRecord && detailRecord.id === record.id) {
+        setDetailRecord(null);
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || '操作失败';
+      alert(msg);
       console.error(e);
     }
   };
 
   const submitToReview = async (id: string) => {
     try {
-      await fittingApi.updateStatus(id, { status: 'customer_review' });
+      const res = await fittingApi.updateStatus(id, { status: 'customer_review' });
       fetchFittings();
-    } catch (e) {
+      if (res.data && res.data.stageInfo) {
+        console.log('订单阶段已同步更新:', res.data.stageInfo.stageLabel);
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || '操作失败';
+      alert(msg);
       console.error(e);
     }
   };

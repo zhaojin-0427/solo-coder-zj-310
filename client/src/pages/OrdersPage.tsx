@@ -5,6 +5,15 @@ import {
   ORDER_STATUS_LABELS,
   ORDER_STATUS_COLORS,
   DollTemplate,
+  StageInfo,
+  StageTimelineNode,
+  KeyMilestone,
+  PatternTask,
+  FittingRecord,
+  PATTERN_STATUS_LABELS,
+  PATTERN_STATUS_COLORS,
+  FITTING_STATUS_LABELS,
+  FITTING_STATUS_COLORS,
 } from '../types';
 import { orderApi, dollApi } from '../api';
 
@@ -30,6 +39,11 @@ export default function OrdersPage() {
   const [searchName, setSearchName] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
+  const [detailStageInfo, setDetailStageInfo] = useState<StageInfo | null>(null);
+  const [detailStageTimeline, setDetailStageTimeline] = useState<StageTimelineNode[]>([]);
+  const [detailKeyMilestones, setDetailKeyMilestones] = useState<KeyMilestone[]>([]);
+  const [detailPatterns, setDetailPatterns] = useState<PatternTask[]>([]);
+  const [detailFittings, setDetailFittings] = useState<FittingRecord[]>([]);
   const [formData, setFormData] = useState<any>({
     customerName: '',
     customerPhone: '',
@@ -140,14 +154,44 @@ export default function OrdersPage() {
 
   const updateOrderStatus = async (orderId: string, newStatus: OrderStatus, note?: string) => {
     try {
-      await orderApi.updateStatus(orderId, {
+      const res = await orderApi.updateStatus(orderId, {
         status: newStatus,
         note,
         operator: '系统操作',
       });
       fetchOrders();
+      if (detailOrder && detailOrder.id === orderId && res.data) {
+        const data = res.data as any;
+        setDetailStageInfo(data.stageInfo || null);
+        setDetailStageTimeline(data.stageTimeline || []);
+        setDetailKeyMilestones(data.keyMilestones || []);
+        setDetailOrder(data);
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || '状态更新失败';
+      alert(msg);
+      console.error(e);
+    }
+  };
+
+  const fetchOrderDetail = async (order: Order) => {
+    try {
+      const res = await orderApi.getById(order.id);
+      const data = res.data as any;
+      setDetailOrder(data);
+      setDetailStageInfo(data.stageInfo || null);
+      setDetailStageTimeline(data.stageTimeline || []);
+      setDetailKeyMilestones(data.keyMilestones || []);
+      setDetailPatterns(data.patternTasks || []);
+      setDetailFittings(data.fittingRecords || []);
     } catch (e) {
       console.error(e);
+      setDetailOrder(order);
+      setDetailStageInfo(null);
+      setDetailStageTimeline([]);
+      setDetailKeyMilestones([]);
+      setDetailPatterns([]);
+      setDetailFittings([]);
     }
   };
 
@@ -303,7 +347,9 @@ export default function OrdersPage() {
                       <div className="flex gap-2 flex-wrap">
                         <button
                           className="btn btn-sm btn-outline"
-                          onClick={() => setDetailOrder(order)}
+                          onClick={() => {
+                            fetchOrderDetail(order);
+                          }}
                         >
                           查看
                         </button>
@@ -536,12 +582,163 @@ export default function OrdersPage() {
 
       {detailOrder && (
         <div className="modal-overlay" onClick={() => setDetailOrder(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal" style={{ maxWidth: '820px' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">📄 订单详情 - {detailOrder.orderNumber}</h3>
               <button className="modal-close" onClick={() => setDetailOrder(null)}>×</button>
             </div>
             <div className="modal-body">
+              {detailStageInfo && (
+                <div style={{
+                  padding: '20px',
+                  background: 'linear-gradient(135deg, #fdf4ff 0%, #ede9fe 100%)',
+                  borderRadius: '14px',
+                  marginBottom: '20px',
+                  border: '1px solid #ddd6fe',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}>
+                  <div style={{ position: 'absolute', top: '-30px', right: '-30px', fontSize: '100px', opacity: 0.05 }}>
+                    📍
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', position: 'relative' }}>
+                    <div>
+                      <div style={{ fontSize: '12px', color: '#7c3aed', fontWeight: 600, marginBottom: '6px' }}>📍 当前业务阶段</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#5b21b6' }}>
+                        {detailStageInfo.stageLabel}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      {detailStageInfo.patternStatus && (
+                        <div style={{
+                          padding: '10px 14px',
+                          background: 'white',
+                          borderRadius: '10px',
+                          fontSize: '12px',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                          minWidth: '90px',
+                        }}>
+                          <span className="text-muted" style={{ fontSize: '11px' }}>✂️ 打版状态</span>
+                          <div style={{ fontWeight: 700, color: '#6d28d9', marginTop: '3px', fontSize: '13px' }}>
+                            {detailStageInfo.patternStatus}
+                          </div>
+                        </div>
+                      )}
+                      {detailStageInfo.fittingStatus && (
+                        <div style={{
+                          padding: '10px 14px',
+                          background: 'white',
+                          borderRadius: '10px',
+                          fontSize: '12px',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                          minWidth: '90px',
+                        }}>
+                          <span className="text-muted" style={{ fontSize: '11px' }}>📸 试穿状态</span>
+                          <div style={{ fontWeight: 700, color: '#f97316', marginTop: '3px', fontSize: '13px' }}>
+                            {detailStageInfo.fittingStatus}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {detailStageInfo.nextAction && (
+                    <div style={{
+                      marginTop: '16px',
+                      padding: '12px 16px',
+                      background: 'rgba(34, 197, 94, 0.1)',
+                      borderRadius: '10px',
+                      borderLeft: '4px solid #22c55e',
+                      position: 'relative',
+                    }}>
+                      <div style={{ fontSize: '12px', color: '#16a34a', fontWeight: 700, marginBottom: '4px' }}>
+                        ✅ 下一步建议动作
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#15803d', fontWeight: 500, lineHeight: 1.5 }}>
+                        {detailStageInfo.nextAction}
+                      </div>
+                    </div>
+                  )}
+
+                  {detailStageInfo.blockReason && (
+                    <div style={{
+                      marginTop: '10px',
+                      padding: '12px 16px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      borderRadius: '10px',
+                      borderLeft: '4px solid #ef4444',
+                    }}>
+                      <div style={{ fontSize: '12px', color: '#dc2626', fontWeight: 700, marginBottom: '4px' }}>
+                        ⚠️ 阻塞原因
+                      </div>
+                      <div style={{ fontSize: '14px', color: '#b91c1c', fontWeight: 500, lineHeight: 1.5 }}>
+                        {detailStageInfo.blockReason}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {detailStageTimeline.length > 0 && (
+                <div style={{ marginBottom: '22px' }}>
+                  <div className="card-title" style={{ marginBottom: '14px' }}>
+                    🔄 阶段进度
+                  </div>
+                  <div className="stage-progress-bar" style={{ marginBottom: '14px' }}>
+                    {detailStageTimeline.map((node, idx) => {
+                      return (
+                        <div key={node.stage} className="stage-progress-item">
+                          <div
+                            className={`stage-progress-dot ${node.isCompleted ? 'active' : ''} ${node.isCurrent ? 'current' : ''}`}
+                            title={node.timestamp ? new Date(node.timestamp).toLocaleString('zh-CN') : ''}
+                          >
+                            {node.isCompleted && !node.isCurrent ? '✓' : idx + 1}
+                          </div>
+                          <div className={`stage-progress-label ${node.isCurrent ? 'current' : ''}`}>
+                            {node.stageLabel.replace('阶段', '')}
+                          </div>
+                          {idx < detailStageTimeline.length - 1 && (
+                            <div className={`stage-progress-line ${node.isCompleted && idx < detailStageTimeline.findIndex(n => !n.isCompleted) ? 'active' : ''}`} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {detailKeyMilestones.length > 0 && (
+                <div style={{ marginBottom: '22px' }}>
+                  <div className="card-title" style={{ marginBottom: '12px' }}>
+                    📅 关键时间节点
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                    gap: '10px',
+                  }}>
+                    {detailKeyMilestones.filter(m => m.timestamp).map((milestone, idx) => (
+                      <div key={idx} style={{
+                        padding: '12px',
+                        background: '#f8fafc',
+                        borderRadius: '10px',
+                        border: '1px solid #e2e8f0',
+                      }}>
+                        <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>
+                          {milestone.label}
+                        </div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#334155' }}>
+                          {new Date(milestone.timestamp!).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                          {new Date(milestone.timestamp!).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="order-info-grid mb-4">
                 <div className="info-block">
                   <div className="info-label">客户姓名</div>
@@ -592,6 +789,41 @@ export default function OrdersPage() {
                   )}
                 </div>
               ))}
+
+              {(detailPatterns.length > 0 || detailFittings.length > 0) && (
+                <div className="card-title mt-4">关联任务概览</div>
+              )}
+              {detailPatterns.length > 0 && (
+                <div style={{ padding: '12px 14px', background: '#f5f3ff', borderRadius: '8px', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#6d28d9', marginBottom: '6px' }}>
+                    ✂️ 打版任务（共 {detailPatterns.length} 个）
+                  </div>
+                  {detailPatterns.map(p => (
+                    <div key={p.id} style={{ fontSize: '12.5px', padding: '4px 0', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>设计师：{p.designer}</span>
+                      <span style={{ color: PATTERN_STATUS_COLORS[p.status as keyof typeof PATTERN_STATUS_COLORS], fontWeight: 600 }}>
+                        {PATTERN_STATUS_LABELS[p.status as keyof typeof PATTERN_STATUS_LABELS]}
+                        {p.reworkCount > 0 && ` · 返工${p.reworkCount}次`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {detailFittings.length > 0 && (
+                <div style={{ padding: '12px 14px', background: '#fff7ed', borderRadius: '8px', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#c2410c', marginBottom: '6px' }}>
+                    📸 试穿记录（共 {detailFittings.length} 轮）
+                  </div>
+                  {detailFittings.map(f => (
+                    <div key={f.id} style={{ fontSize: '12.5px', padding: '4px 0', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>第 {f.fittingRound} 轮</span>
+                      <span style={{ color: FITTING_STATUS_COLORS[f.status], fontWeight: 600 }}>
+                        {FITTING_STATUS_LABELS[f.status]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="card-title mt-4">订单轨迹</div>
               <div className="timeline">

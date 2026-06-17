@@ -159,6 +159,82 @@ export interface SummaryData {
   activePatterns: number;
   pendingFittings: number;
   totalDollTemplates: number;
+  highRiskOrders?: number;
+}
+
+export type BusinessStage =
+  | 'pending_confirm'
+  | 'pattern_making'
+  | 'fabric_prep'
+  | 'sewing'
+  | 'fitting'
+  | 'customer_review'
+  | 'shipping'
+  | 'completed'
+  | 'cancelled';
+
+export const BUSINESS_STAGE_LABELS: Record<BusinessStage, string> = {
+  pending_confirm: '待确认接单',
+  pattern_making: '打版阶段',
+  fabric_prep: '裁料阶段',
+  sewing: '缝制阶段',
+  fitting: '试穿确认阶段',
+  customer_review: '客户最终确认',
+  shipping: '发货配送',
+  completed: '已完成',
+  cancelled: '已取消',
+};
+
+export interface StageInfo {
+  stage: BusinessStage;
+  stageLabel: string;
+  nextAction?: string;
+  blockReason?: string;
+  patternStatus?: string;
+  fittingStatus?: string;
+}
+
+export interface StageTimelineNode {
+  stage: BusinessStage;
+  stageLabel: string;
+  status: OrderStatus;
+  statusLabel: string;
+  timestamp?: string;
+  note?: string;
+  isCompleted: boolean;
+  isCurrent: boolean;
+}
+
+export interface KeyMilestone {
+  label: string;
+  timestamp?: string;
+  status: string;
+}
+
+export interface DeliveryRiskItem {
+  type: 'overdue' | 'fitting_pending' | 'high_rework';
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  deliveryDate: string;
+  riskLevel: 'high' | 'medium' | 'low';
+  description: string;
+  stage: string;
+  days?: number;
+}
+
+export interface StageDuration {
+  stage: BusinessStage;
+  stageLabel: string;
+  avgHours: number;
+  sampleCount: number;
+}
+
+export interface DeliveryRiskData {
+  overdueOrders: DeliveryRiskItem[];
+  pendingFittingsOver48h: DeliveryRiskItem[];
+  highReworkOrders: DeliveryRiskItem[];
+  stageDurations: StageDuration[];
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {

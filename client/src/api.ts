@@ -6,6 +6,8 @@ import {
   FittingRecord,
   StatsData,
   SummaryData,
+  StageInfo,
+  DeliveryRiskData,
 } from './types';
 
 const api = axios.create({
@@ -53,11 +55,13 @@ export const patternApi = {
   getById: (id: string) =>
     api.get<ApiResponse<PatternTask>>(`/patterns/${id}`).then(r => r.data),
   create: (data: Partial<PatternTask>) =>
-    api.post<ApiResponse<PatternTask>>('/patterns', data).then(r => r.data),
+    api.post<ApiResponse<{ task: PatternTask; stageInfo?: StageInfo }>>('/patterns', data).then(r => r.data),
   update: (id: string, data: Partial<PatternTask>) =>
     api.put<ApiResponse<PatternTask>>(`/patterns/${id}`, data).then(r => r.data),
+  updateStatus: (id: string, status: string) =>
+    api.patch<ApiResponse<{ task: PatternTask; stageInfo?: StageInfo }>>(`/patterns/${id}/status`, { status }).then(r => r.data),
   rework: (id: string) =>
-    api.patch<ApiResponse<PatternTask>>(`/patterns/${id}/rework`, {}).then(r => r.data),
+    api.patch<ApiResponse<{ task: PatternTask; stageInfo?: StageInfo }>>(`/patterns/${id}/rework`, {}).then(r => r.data),
 };
 
 export const fittingApi = {
@@ -66,14 +70,14 @@ export const fittingApi = {
   getById: (id: string) =>
     api.get<ApiResponse<FittingRecord>>(`/fittings/${id}`).then(r => r.data),
   create: (data: Partial<FittingRecord>) =>
-    api.post<ApiResponse<FittingRecord>>('/fittings', data).then(r => r.data),
+    api.post<ApiResponse<{ record: FittingRecord; stageInfo?: StageInfo }>>('/fittings', data).then(r => r.data),
   update: (id: string, data: Partial<FittingRecord>) =>
     api.put<ApiResponse<FittingRecord>>(`/fittings/${id}`, data).then(r => r.data),
   updateStatus: (
     id: string,
     data: { status: string; customerFeedback?: string; reworkSuggestions?: string[] }
   ) =>
-    api.patch<ApiResponse<FittingRecord>>(`/fittings/${id}/status`, data).then(r => r.data),
+    api.patch<ApiResponse<{ record: FittingRecord; stageInfo?: StageInfo }>>(`/fittings/${id}/status`, data).then(r => r.data),
 };
 
 export const statsApi = {
@@ -81,4 +85,6 @@ export const statsApi = {
     api.get<ApiResponse<StatsData>>('/stats').then(r => r.data),
   getSummary: () =>
     api.get<ApiResponse<SummaryData>>('/stats/summary').then(r => r.data),
+  getDeliveryRisk: () =>
+    api.get<ApiResponse<DeliveryRiskData>>('/stats/delivery-risk').then(r => r.data),
 };

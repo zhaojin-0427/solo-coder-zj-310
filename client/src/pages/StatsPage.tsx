@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { StatsData, SummaryData } from '../types';
-import { statsApi } from '../api';
+import { StatsData, SummaryData, DeliveryRiskData, StageDuration, BusinessStage } from '../types';
+import { statsApi, orderApi } from '../api';
 
 const PIE_COLORS = ['#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#14b8a6', '#22c55e', '#f59e0b', '#f97316'];
 
@@ -85,14 +85,20 @@ function DonutChart({
 export default function StatsPage() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [summary, setSummary] = useState<SummaryData | null>(null);
+  const [riskData, setRiskData] = useState<DeliveryRiskData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [s1, s2] = await Promise.all([statsApi.getStats(), statsApi.getSummary()]);
+      const [s1, s2, s3] = await Promise.all([
+        statsApi.getStats(),
+        statsApi.getSummary(),
+        statsApi.getDeliveryRisk(),
+      ]);
       setStats(s1.data);
       setSummary(s2.data);
+      setRiskData(s3.data);
     } catch (e) {
       console.error(e);
     }
@@ -252,7 +258,336 @@ export default function StatsPage() {
           </div>
 
           <div className="card">
-            <h3 className="card-title">💡 智能经营建议</h3>
+            <h3 className="card-title">⚠️ 交付风险看板</h3>
+            {riskData ? (
+              <>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '14px',
+                  marginBottom: '20px',
+                }}>
+                  <div style={{
+                    padding: '16px',
+                    background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                    borderRadius: '12px',
+                    border: '1px solid #fecaca',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: '28px', marginBottom: '6px' }}>⏰</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#dc2626' }}>
+                      {riskData.overdueOrders.length}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#991b1b', fontWeight: 600, marginTop: '4px' }}>
+                      逾期风险订单
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#b91c1c', marginTop: '2px' }}>
+                      高危 {riskData.overdueOrders.filter(r => r.riskLevel === 'high').length} 单
+                    </div>
+                  </div>
+                  <div style={{
+                    padding: '16px',
+                    background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+                    borderRadius: '12px',
+                    border: '1px solid #fed7aa',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: '28px', marginBottom: '6px' }}>⏳</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#ea580c' }}>
+                      {riskData.pendingFittingsOver48h.length}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#c2410c', fontWeight: 600, marginTop: '4px' }}>
+                      客户确认超48小时
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#d97706', marginTop: '2px' }}>
+                      需及时跟进客户
+                    </div>
+                  </div>
+                  <div style={{
+                    padding: '16px',
+                    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                    borderRadius: '12px',
+                    border: '1px solid #fcd34d',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: '28px', marginBottom: '6px' }}>🔄</div>
+                    <div style={{ fontSize: '24px', fontWeight: 800, color: '#ca8a04' }}>
+                      {riskData.highReworkOrders.length}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#a16207', fontWeight: 600, marginTop: '4px' }}>
+                      高返工订单
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#b45309', marginTop: '2px' }}>
+                      返工超过1次
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                  gap: '16px',
+                }}>
+                  <div style={{
+                    padding: '18px',
+                    background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+                    borderRadius: '12px',
+                    border: '1px solid #fecaca',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: '#b91c1c' }}>
+                        ⏰ 逾期风险订单
+                      </div>
+                      <span style={{
+                        background: '#dc2626',
+                        color: 'white',
+                        padding: '3px 10px',
+                        borderRadius: '999px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                      }}>
+                        {riskData.overdueOrders.length} 单
+                      </span>
+                    </div>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                      {riskData.overdueOrders.length === 0 ? (
+                        <div style={{ fontSize: '12.5px', color: '#64748b', textAlign: 'center', padding: '20px 0' }}>
+                          🎉 暂无逾期风险订单
+                        </div>
+                      ) : (
+                        riskData.overdueOrders.map(item => (
+                          <div key={item.orderId} style={{
+                            padding: '10px 12px',
+                            background: 'white',
+                            borderRadius: '8px',
+                            marginBottom: '8px',
+                            borderLeft: `3px solid ${item.riskLevel === 'high' ? '#dc2626' : '#f59e0b'}`,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLDivElement).style.transform = 'translateX(4px)';
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLDivElement).style.transform = 'none';
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+                          }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ fontSize: '12.5px', fontWeight: 600 }}>{item.orderNumber}</div>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                background: item.riskLevel === 'high' ? '#fef2f2' : '#fffbeb',
+                                color: item.riskLevel === 'high' ? '#dc2626' : '#d97706',
+                              }}>
+                                {item.riskLevel === 'high' ? '高危' : '中危'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
+                              {item.customerName} · {item.stage}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#dc2626', fontWeight: 600, marginTop: '3px' }}>
+                              {item.description}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    padding: '18px',
+                    background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+                    borderRadius: '12px',
+                    border: '1px solid #fed7aa',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: '#c2410c' }}>
+                        ⏳ 客户确认超48小时
+                      </div>
+                      <span style={{
+                        background: '#ea580c',
+                        color: 'white',
+                        padding: '3px 10px',
+                        borderRadius: '999px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                      }}>
+                        {riskData.pendingFittingsOver48h.length} 单
+                      </span>
+                    </div>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                      {riskData.pendingFittingsOver48h.length === 0 ? (
+                        <div style={{ fontSize: '12.5px', color: '#64748b', textAlign: 'center', padding: '20px 0' }}>
+                          ✅ 暂无超期等待的试穿记录
+                        </div>
+                      ) : (
+                        riskData.pendingFittingsOver48h.map(item => (
+                          <div key={item.orderId} style={{
+                            padding: '10px 12px',
+                            background: 'white',
+                            borderRadius: '8px',
+                            marginBottom: '8px',
+                            borderLeft: `3px solid ${item.riskLevel === 'high' ? '#dc2626' : '#f59e0b'}`,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLDivElement).style.transform = 'translateX(4px)';
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLDivElement).style.transform = 'none';
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+                          }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ fontSize: '12.5px', fontWeight: 600 }}>{item.orderNumber}</div>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                background: item.riskLevel === 'high' ? '#fef2f2' : '#fffbeb',
+                                color: item.riskLevel === 'high' ? '#dc2626' : '#d97706',
+                              }}>
+                                {item.riskLevel === 'high' ? '高危' : '中危'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
+                              {item.customerName} · {item.stage}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#ea580c', fontWeight: 600, marginTop: '3px' }}>
+                              {item.description}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    padding: '18px',
+                    background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                    borderRadius: '12px',
+                    border: '1px solid #fcd34d',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: '#a16207' }}>
+                        🔄 高返工订单
+                      </div>
+                      <span style={{
+                        background: '#ca8a04',
+                        color: 'white',
+                        padding: '3px 10px',
+                        borderRadius: '999px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                      }}>
+                        {riskData.highReworkOrders.length} 单
+                      </span>
+                    </div>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                      {riskData.highReworkOrders.length === 0 ? (
+                        <div style={{ fontSize: '12.5px', color: '#64748b', textAlign: 'center', padding: '20px 0' }}>
+                          ✨ 暂无高返工订单
+                        </div>
+                      ) : (
+                        riskData.highReworkOrders.map(item => (
+                          <div key={item.orderId} style={{
+                            padding: '10px 12px',
+                            background: 'white',
+                            borderRadius: '8px',
+                            marginBottom: '8px',
+                            borderLeft: `3px solid ${item.riskLevel === 'high' ? '#dc2626' : '#f59e0b'}`,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLDivElement).style.transform = 'translateX(4px)';
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLDivElement).style.transform = 'none';
+                            (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+                          }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ fontSize: '12.5px', fontWeight: 600 }}>{item.orderNumber}</div>
+                              <span style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '999px',
+                                background: item.riskLevel === 'high' ? '#fef2f2' : '#fffbeb',
+                                color: item.riskLevel === 'high' ? '#dc2626' : '#d97706',
+                              }}>
+                                {item.riskLevel === 'high' ? '高危' : '中危'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
+                              {item.customerName} · {item.stage}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#ca8a04', fontWeight: 600, marginTop: '3px' }}>
+                              {item.description}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">加载中...</div>
+            )}
+          </div>
+
+          <div className="card">
+            <h3 className="card-title">⏱️ 各阶段平均停留时长</h3>
+            {riskData && riskData.stageDurations.length > 0 ? (
+              <div className="bar-chart">
+                {riskData.stageDurations.map((item, idx) => (
+                  <div key={item.stage} className="bar-chart-item">
+                    <div className="bar-chart-label" style={{ minWidth: '100px' }}>
+                      {item.stageLabel}
+                    </div>
+                    <div className="bar-chart-track">
+                      <div
+                        className={
+                          'bar-chart-fill ' +
+                          (idx === 0 ? '' : idx === 1 ? 'purple' : idx === 2 ? 'blue' : 'green')
+                        }
+                        style={{
+                          width: `${Math.max((item.avgHours / Math.max(...riskData.stageDurations.map(s => s.avgHours))) * 100, 8)}%`,
+                        }}
+                      >
+                        {item.avgHours > 0 ? `${item.avgHours} 小时` : ''}
+                      </div>
+                    </div>
+                    <div className="bar-chart-value" style={{ minWidth: '100px' }}>
+                      {item.avgHours} 小时
+                      <div style={{ fontSize: '10.5px', fontWeight: 400, color: '#94a3b8' }}>
+                        {item.sampleCount} 个样本
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">暂无数据</div>
+            )}
+            <div className="mt-4 text-muted" style={{ fontSize: '12px' }}>
+              💡 <strong>说明：</strong>统计各业务阶段的平均停留时长，可识别瓶颈环节并针对性优化
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 className="card-title">�💡 智能经营建议</h3>
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',

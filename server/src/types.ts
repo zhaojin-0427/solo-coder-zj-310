@@ -105,3 +105,66 @@ export interface StatsData {
   avgCycleTime: number;
   styleDistribution: { style: string; count: number; percentage: number }[];
 }
+
+export type BusinessStage =
+  | 'pending_confirm'
+  | 'pattern_making'
+  | 'fabric_prep'
+  | 'sewing'
+  | 'fitting'
+  | 'customer_review'
+  | 'shipping'
+  | 'completed'
+  | 'cancelled';
+
+export interface StageInfo {
+  stage: BusinessStage;
+  stageLabel: string;
+  nextAction?: string;
+  blockReason?: string;
+  patternStatus?: string;
+  fittingStatus?: string;
+}
+
+export interface DeliveryRiskItem {
+  type: 'overdue' | 'fitting_pending' | 'high_rework';
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  deliveryDate: string;
+  riskLevel: 'high' | 'medium' | 'low';
+  description: string;
+  stage: string;
+  days?: number;
+}
+
+export interface StageDuration {
+  stage: BusinessStage;
+  stageLabel: string;
+  avgHours: number;
+  sampleCount: number;
+}
+
+export interface StageTimelineNode {
+  stage: BusinessStage;
+  stageLabel: string;
+  status: OrderStatus;
+  statusLabel: string;
+  timestamp?: string;
+  note?: string;
+  isCompleted: boolean;
+  isCurrent: boolean;
+}
+
+export interface KeyMilestone {
+  label: string;
+  timestamp?: string;
+  status: string;
+}
+
+export interface DeliveryRiskData {
+  overdueOrders: DeliveryRiskItem[];
+  pendingFittingsOver48h: DeliveryRiskItem[];
+  highReworkOrders: DeliveryRiskItem[];
+  stageDurations: StageDuration[];
+}

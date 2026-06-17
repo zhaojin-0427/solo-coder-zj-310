@@ -55,10 +55,13 @@ export default function PatternsPage() {
       return;
     }
     try {
-      await patternApi.create(formData);
+      const res = await patternApi.create(formData);
       setShowModal(false);
       fetchTasks();
       resetForm();
+      if (res.data && res.data.stageInfo) {
+        alert(`打版任务已创建，订单阶段已同步为：${res.data.stageInfo.stageLabel}`);
+      }
     } catch (e: any) {
       const msg = e?.response?.data?.message || '创建打版任务失败，请稍后重试';
       alert(msg);
@@ -124,19 +127,30 @@ export default function PatternsPage() {
 
   const updateStatus = async (taskId: string, status: string) => {
     try {
-      await patternApi.update(taskId, { status: status as any });
+      const res = await patternApi.updateStatus(taskId, status);
       fetchTasks();
-    } catch (e) {
+      if (res.data && res.data.stageInfo) {
+        console.log('订单阶段已同步更新:', res.data.stageInfo.stageLabel);
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || '状态更新失败';
+      alert(msg);
       console.error(e);
+      fetchTasks();
     }
   };
 
   const handleRework = async (taskId: string) => {
-    if (!confirm('确定标记为需要返工吗？')) return;
+    if (!confirm('确定标记为需要返工吗？订单状态将自动回退至打版阶段。')) return;
     try {
-      await patternApi.rework(taskId);
+      const res = await patternApi.rework(taskId);
       fetchTasks();
-    } catch (e) {
+      if (res.data && res.data.stageInfo) {
+        alert(`打版已标记为返工，订单阶段已同步为：${res.data.stageInfo.stageLabel}`);
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || '操作失败';
+      alert(msg);
       console.error(e);
     }
   };

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { store } from '../store';
-import { StatsData } from '../types';
+import { StatsData, DeliveryRiskData } from '../types';
+import { getDeliveryRiskData, ORDER_STATUS_LABELS_CN } from '../stateFlow';
 
 const router = Router();
 
@@ -93,6 +94,7 @@ router.get('/', (req: Request, res: Response) => {
 });
 
 router.get('/summary', (req: Request, res: Response) => {
+  const riskData = getDeliveryRiskData();
   const summary = {
     totalOrders: store.orders.length,
     pendingOrders: store.orders.filter(o => ['pending', 'confirmed'].includes(o.status)).length,
@@ -104,8 +106,16 @@ router.get('/summary', (req: Request, res: Response) => {
     activePatterns: store.patternTasks.filter(p => ['pending', 'in_progress'].includes(p.status)).length,
     pendingFittings: store.fittingRecords.filter(f => ['photo_taken', 'customer_review'].includes(f.status)).length,
     totalDollTemplates: store.dolls.length,
+    highRiskOrders: riskData.overdueOrders.filter(r => r.riskLevel === 'high').length
+      + riskData.pendingFittingsOver48h.filter(r => r.riskLevel === 'high').length
+      + riskData.highReworkOrders.filter(r => r.riskLevel === 'high').length,
   };
   res.json({ success: true, data: summary });
+});
+
+router.get('/delivery-risk', (req: Request, res: Response) => {
+  const data: DeliveryRiskData = getDeliveryRiskData();
+  res.json({ success: true, data });
 });
 
 export default router;

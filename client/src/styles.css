@@ -785,6 +785,10 @@ body {
   background: linear-gradient(90deg, #f59e0b, #f97316);
 }
 
+.bar-chart-fill.purple {
+  background: linear-gradient(90deg, #8b5cf6, #ec4899);
+}
+
 .bar-chart-value {
   min-width: 80px;
   text-align: right;
@@ -924,6 +928,162 @@ body {
   font-weight: 600;
   color: var(--text);
   margin-top: 4px;
+}
+
+.stage-progress-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+  padding: 0 10px;
+}
+
+.stage-progress-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+}
+
+.stage-progress-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  z-index: 2;
+  border: 3px solid white;
+  box-shadow: 0 0 0 2px #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.stage-progress-dot.active {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.stage-progress-dot.current {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 0 0 3px #ddd6fe, 0 0 12px rgba(139, 92, 246, 0.4);
+  transform: scale(1.1);
+}
+
+.stage-progress-label {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.stage-progress-label.current {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.stage-progress-line {
+  position: absolute;
+  top: 14px;
+  left: calc(50% + 16px);
+  right: calc(-50% + 16px);
+  height: 3px;
+  background: #e2e8f0;
+  z-index: 1;
+  border-radius: 2px;
+}
+
+.stage-progress-line.active {
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}
+
+.stage-progress-item:last-child .stage-progress-line {
+  display: none;
+}
+
+.risk-card {
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 20px 22px;
+  margin-bottom: 20px;
+}
+
+.risk-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.risk-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.risk-card-count {
+  background: var(--danger);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.risk-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: #fafafa;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.risk-item-high {
+  border-left: 3px solid var(--danger);
+}
+
+.risk-item-medium {
+  border-left: 3px solid var(--warning);
+}
+
+.risk-item-low {
+  border-left: 3px solid var(--info);
+}
+
+.risk-level {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.risk-level-high {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.risk-level-medium {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.risk-level-low {
+  background: #eff6ff;
+  color: #2563eb;
 }
 
 @media (max-width: 768px) {
