@@ -1,14 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { mockDollTemplates } from '../data';
+import { store } from '../store';
 import { DollTemplate } from '../types';
 
 const router = Router();
-let dolls: DollTemplate[] = [...mockDollTemplates];
 
 router.get('/', (req: Request, res: Response) => {
   const { brand, model } = req.query;
-  let filtered = [...dolls];
+  let filtered = [...store.dolls];
   if (brand) {
     filtered = filtered.filter(d => d.brand.toLowerCase().includes((brand as string).toLowerCase()));
   }
@@ -19,7 +18,7 @@ router.get('/', (req: Request, res: Response) => {
 });
 
 router.get('/:id', (req: Request, res: Response) => {
-  const doll = dolls.find(d => d.id === req.params.id);
+  const doll = store.dolls.find(d => d.id === req.params.id);
   if (!doll) {
     return res.status(404).json({ success: false, message: '娃体模板不存在' });
   }
@@ -34,31 +33,31 @@ router.post('/', (req: Request, res: Response) => {
     createdAt: now,
     updatedAt: now,
   };
-  dolls.push(newDoll);
+  store.dolls.push(newDoll);
   res.status(201).json({ success: true, data: newDoll });
 });
 
 router.put('/:id', (req: Request, res: Response) => {
-  const idx = dolls.findIndex(d => d.id === req.params.id);
+  const idx = store.dolls.findIndex(d => d.id === req.params.id);
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '娃体模板不存在' });
   }
-  dolls[idx] = {
-    ...dolls[idx],
+  store.dolls[idx] = {
+    ...store.dolls[idx],
     ...req.body,
-    id: dolls[idx].id,
-    createdAt: dolls[idx].createdAt,
+    id: store.dolls[idx].id,
+    createdAt: store.dolls[idx].createdAt,
     updatedAt: new Date().toISOString(),
   };
-  res.json({ success: true, data: dolls[idx] });
+  res.json({ success: true, data: store.dolls[idx] });
 });
 
 router.delete('/:id', (req: Request, res: Response) => {
-  const idx = dolls.findIndex(d => d.id === req.params.id);
+  const idx = store.dolls.findIndex(d => d.id === req.params.id);
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '娃体模板不存在' });
   }
-  dolls.splice(idx, 1);
+  store.dolls.splice(idx, 1);
   res.json({ success: true, message: '已删除' });
 });
 

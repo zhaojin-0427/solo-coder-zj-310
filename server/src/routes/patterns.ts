@@ -1,26 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { mockPatternTasks, mockOrders, mockDollTemplates } from '../data';
+import { store } from '../store';
 import { PatternTask } from '../types';
 
 const router = Router();
-let patternTasks: PatternTask[] = [...mockPatternTasks];
-
-const getOrderInfo = (orderId: string) => {
-  const order = mockOrders.find(o => o.id === orderId);
-  if (!order) return null;
-  const doll = mockDollTemplates.find(d => d.id === order.dollTemplateId);
-  return {
-    orderNumber: order.orderNumber,
-    customerName: order.customerName,
-    dollName: doll ? `${doll.brand} ${doll.model}` : order.dollTemplateId,
-    styleTags: order.styleTags,
-  };
-};
 
 router.get('/', (req: Request, res: Response) => {
   const { status, orderId, designer } = req.query;
-  let filtered = [...patternTasks];
+  let filtered = [...store.patternTasks];
   if (status) {
     filtered = filtered.filter(p => p.status === status);
   }
@@ -32,13 +19,13 @@ router.get('/', (req: Request, res: Response) => {
   }
   const enriched = filtered.map(p => ({
     ...p,
-    orderInfo: getOrderInfo(p.orderId),
+    orderInfo: store.getOrderInfo(p.orderId),
   }));
   res.json({ success: true, data: enriched });
 });
 
 router.get('/:id', (req: Request, res: Response) => {
-  const task = patternTasks.find(p => p.id === req.params.id);
+  const task = store.patternTasks.find(p => p.id === req.params.id);
   if (!task) {
     return res.status(404).json({ success: false, message: '打版任务不存在' });
   }
@@ -46,7 +33,7 @@ router.get('/:id', (req: Request, res: Response) => {
     success: true,
     data: {
       ...task,
-      orderInfo: getOrderInfo(task.orderId),
+      orderInfo: store.getOrderInfo(task.orderId),
     },
   });
 });
@@ -61,34 +48,34 @@ router.post('/', (req: Request, res: Response) => {
     createdAt: now,
     updatedAt: now,
   };
-  patternTasks.unshift(newTask);
+  store.patternTasks.unshift(newTask);
   res.status(201).json({ success: true, data: newTask });
 });
 
 router.put('/:id', (req: Request, res: Response) => {
-  const idx = patternTasks.findIndex(p => p.id === req.params.id);
+  const idx = store.patternTasks.findIndex(p => p.id === req.params.id);
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '打版任务不存在' });
   }
-  patternTasks[idx] = {
-    ...patternTasks[idx],
+  store.patternTasks[idx] = {
+    ...store.patternTasks[idx],
     ...req.body,
-    id: patternTasks[idx].id,
-    createdAt: patternTasks[idx].createdAt,
+    id: store.patternTasks[idx].id,
+    createdAt: store.patternTasks[idx].createdAt,
     updatedAt: new Date().toISOString(),
   };
-  res.json({ success: true, data: patternTasks[idx] });
+  res.json({ success: true, data: store.patternTasks[idx] });
 });
 
 router.patch('/:id/rework', (req: Request, res: Response) => {
-  const idx = patternTasks.findIndex(p => p.id === req.params.id);
+  const idx = store.patternTasks.findIndex(p => p.id === req.params.id);
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '打版任务不存在' });
   }
-  patternTasks[idx].reworkCount += 1;
-  patternTasks[idx].status = 'in_progress';
-  patternTasks[idx].updatedAt = new Date().toISOString();
-  res.json({ success: true, data: patternTasks[idx] });
+  store.patternTasks[idx].reworkCount += 1;
+  store.patternTasks[idx].status = 'in_progress';
+  store.patternTasks[idx].updatedAt = new Date().toISOString();
+  res.json({ success: true, data: store.patternTasks[idx] });
 });
 
 export default router;

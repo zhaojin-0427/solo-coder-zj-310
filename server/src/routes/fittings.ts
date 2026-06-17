@@ -1,27 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { mockFittingRecords, mockOrders, mockDollTemplates, mockPatternTasks } from '../data';
+import { store } from '../store';
 import { FittingRecord, FittingStatus } from '../types';
 
 const router = Router();
-let fittingRecords: FittingRecord[] = [...mockFittingRecords];
-
-const getInfo = (orderId: string) => {
-  const order = mockOrders.find(o => o.id === orderId);
-  if (!order) return null;
-  const doll = mockDollTemplates.find(d => d.id === order.dollTemplateId);
-  return {
-    orderNumber: order.orderNumber,
-    customerName: order.customerName,
-    dollName: doll ? `${doll.brand} ${doll.model}` : order.dollTemplateId,
-    styleTags: order.styleTags,
-    deliveryDate: order.deliveryDate,
-  };
-};
 
 router.get('/', (req: Request, res: Response) => {
   const { status, orderId } = req.query;
-  let filtered = [...fittingRecords];
+  let filtered = [...store.fittingRecords];
   if (status) {
     filtered = filtered.filter(f => f.status === status);
   }
@@ -30,13 +16,13 @@ router.get('/', (req: Request, res: Response) => {
   }
   const enriched = filtered.map(f => ({
     ...f,
-    orderInfo: getInfo(f.orderId),
+    orderInfo: store.getOrderInfo(f.orderId),
   }));
   res.json({ success: true, data: enriched });
 });
 
 router.get('/:id', (req: Request, res: Response) => {
-  const record = fittingRecords.find(f => f.id === req.params.id);
+  const record = store.fittingRecords.find(f => f.id === req.params.id);
   if (!record) {
     return res.status(404).json({ success: false, message: '试穿记录不存在' });
   }
@@ -44,14 +30,14 @@ router.get('/:id', (req: Request, res: Response) => {
     success: true,
     data: {
       ...record,
-      orderInfo: getInfo(record.orderId),
+      orderInfo: store.getOrderInfo(record.orderId),
     },
   });
 });
 
 router.post('/', (req: Request, res: Response) => {
   const now = new Date().toISOString();
-  const existCount = fittingRecords.filter(f => f.orderId === req.body.orderId).length;
+  const existCount = store.fittingRecords.filter(f => f.orderId === req.body.orderId).length;
   const newRecord: FittingRecord = {
     id: `fitting-${uuidv4().slice(0, 8)}`,
     photos: [],
@@ -61,39 +47,39 @@ router.post('/', (req: Request, res: Response) => {
     createdAt: now,
     updatedAt: now,
   };
-  fittingRecords.unshift(newRecord);
+  store.fittingRecords.unshift(newRecord);
   res.status(201).json({ success: true, data: newRecord });
 });
 
 router.put('/:id', (req: Request, res: Response) => {
-  const idx = fittingRecords.findIndex(f => f.id === req.params.id);
+  const idx = store.fittingRecords.findIndex(f => f.id === req.params.id);
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '试穿记录不存在' });
   }
-  fittingRecords[idx] = {
-    ...fittingRecords[idx],
+  store.fittingRecords[idx] = {
+    ...store.fittingRecords[idx],
     ...req.body,
-    id: fittingRecords[idx].id,
-    createdAt: fittingRecords[idx].createdAt,
+    id: store.fittingRecords[idx].id,
+    createdAt: store.fittingRecords[idx].createdAt,
     updatedAt: new Date().toISOString(),
   };
-  res.json({ success: true, data: fittingRecords[idx] });
+  res.json({ success: true, data: store.fittingRecords[idx] });
 });
 
 router.patch('/:id/status', (req: Request, res: Response) => {
-  const idx = fittingRecords.findIndex(f => f.id === req.params.id);
+  const idx = store.fittingRecords.findIndex(f => f.id === req.params.id);
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '试穿记录不存在' });
   }
-  fittingRecords[idx].status = req.body.status as FittingStatus;
+  store.fittingRecords[idx].status = req.body.status as FittingStatus;
   if (req.body.customerFeedback) {
-    fittingRecords[idx].customerFeedback = req.body.customerFeedback;
+    store.fittingRecords[idx].customerFeedback = req.body.customerFeedback;
   }
   if (req.body.reworkSuggestions) {
-    fittingRecords[idx].reworkSuggestions = req.body.reworkSuggestions;
+    store.fittingRecords[idx].reworkSuggestions = req.body.reworkSuggestions;
   }
-  fittingRecords[idx].updatedAt = new Date().toISOString();
-  res.json({ success: true, data: fittingRecords[idx] });
+  store.fittingRecords[idx].updatedAt = new Date().toISOString();
+  res.json({ success: true, data: store.fittingRecords[idx] });
 });
 
 export default router;

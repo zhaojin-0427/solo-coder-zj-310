@@ -1,19 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { mockOrders, mockDollTemplates } from '../data';
+import { store } from '../store';
 import { Order, OrderStatus, OrderStatusHistory } from '../types';
 
 const router = Router();
-let orders: Order[] = [...mockOrders];
-
-const getDollName = (id: string) => {
-  const d = mockDollTemplates.find(x => x.id === id);
-  return d ? `${d.brand} ${d.model}` : id;
-};
 
 router.get('/', (req: Request, res: Response) => {
   const { status, customerName, dollId } = req.query;
-  let filtered = [...orders];
+  let filtered = [...store.orders];
   if (status) {
     filtered = filtered.filter(o => o.status === status);
   }
@@ -25,13 +19,13 @@ router.get('/', (req: Request, res: Response) => {
   }
   const enriched = filtered.map(o => ({
     ...o,
-    dollName: getDollName(o.dollTemplateId),
+    dollName: store.getDollName(o.dollTemplateId),
   }));
   res.json({ success: true, data: enriched });
 });
 
 router.get('/:id', (req: Request, res: Response) => {
-  const order = orders.find(o => o.id === req.params.id);
+  const order = store.orders.find(o => o.id === req.params.id);
   if (!order) {
     return res.status(404).json({ success: false, message: '订单不存在' });
   }
@@ -39,14 +33,14 @@ router.get('/:id', (req: Request, res: Response) => {
     success: true,
     data: {
       ...order,
-      dollName: getDollName(order.dollTemplateId),
+      dollName: store.getDollName(order.dollTemplateId),
     },
   });
 });
 
 router.post('/', (req: Request, res: Response) => {
   const now = new Date().toISOString();
-  const orderCount = orders.length + 1;
+  const orderCount = store.orders.length + 1;
   const dateStr = now.slice(0, 10).replace(/-/g, '');
   const history: OrderStatusHistory[] = [
     { status: 'pending', timestamp: now, note: '客户提交订单', operator: '客户' },
@@ -60,27 +54,27 @@ router.post('/', (req: Request, res: Response) => {
     createdAt: now,
     updatedAt: now,
   };
-  orders.unshift(newOrder);
+  store.orders.unshift(newOrder);
   res.status(201).json({ success: true, data: newOrder });
 });
 
 router.put('/:id', (req: Request, res: Response) => {
-  const idx = orders.findIndex(o => o.id === req.params.id);
+  const idx = store.orders.findIndex(o => o.id === req.params.id);
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '订单不存在' });
   }
-  orders[idx] = {
-    ...orders[idx],
+  store.orders[idx] = {
+    ...store.orders[idx],
     ...req.body,
-    id: orders[idx].id,
-    createdAt: orders[idx].createdAt,
+    id: store.orders[idx].id,
+    createdAt: store.orders[idx].createdAt,
     updatedAt: new Date().toISOString(),
   };
-  res.json({ success: true, data: orders[idx] });
+  res.json({ success: true, data: store.orders[idx] });
 });
 
 router.patch('/:id/status', (req: Request, res: Response) => {
-  const idx = orders.findIndex(o => o.id === req.params.id);
+  const idx = store.orders.findIndex(o => o.id === req.params.id);
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '订单不存在' });
   }
@@ -91,10 +85,10 @@ router.patch('/:id/status', (req: Request, res: Response) => {
     note,
     operator: operator || '系统',
   };
-  orders[idx].status = status as OrderStatus;
-  orders[idx].history.push(historyItem);
-  orders[idx].updatedAt = new Date().toISOString();
-  res.json({ success: true, data: orders[idx] });
+  store.orders[idx].status = status as OrderStatus;
+  store.orders[idx].history.push(historyItem);
+  store.orders[idx].updatedAt = new Date().toISOString();
+  res.json({ success: true, data: store.orders[idx] });
 });
 
 export default router;

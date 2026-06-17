@@ -1,27 +1,27 @@
 import { Router, Request, Response } from 'express';
-import { mockOrders, mockPatternTasks, mockDollTemplates } from '../data';
+import { store } from '../store';
 import { StatsData } from '../types';
 
 const router = Router();
 
 router.get('/', (req: Request, res: Response) => {
-  const completedOrders = mockOrders.filter(o =>
+  const completedOrders = store.orders.filter(o =>
     ['completed', 'shipping', 'customer_approved', 'fitting'].includes(o.status)
   );
 
   const dollOrderMap = new Map<string, number>();
   const dollReworkMap = new Map<string, number>();
 
-  mockOrders.forEach(order => {
+  store.orders.forEach(order => {
     dollOrderMap.set(order.dollTemplateId, (dollOrderMap.get(order.dollTemplateId) || 0) + 1);
-    const tasks = mockPatternTasks.filter(p => p.orderId === order.id);
+    const tasks = store.patternTasks.filter(p => p.orderId === order.id);
     const hasRework = tasks.some(t => t.reworkCount > 0);
     if (hasRework) {
       dollReworkMap.set(order.dollTemplateId, (dollReworkMap.get(order.dollTemplateId) || 0) + 1);
     }
   });
 
-  const reworkRate = mockDollTemplates.map(doll => {
+  const reworkRate = store.dolls.map(doll => {
     const total = dollOrderMap.get(doll.id) || 0;
     const reworks = dollReworkMap.get(doll.id) || 0;
     return {
@@ -34,12 +34,13 @@ router.get('/', (req: Request, res: Response) => {
   });
 
   const fabricMap = new Map<string, { fabricName: string; color: string; totalUsed: number; unit: string }>();
-  mockPatternTasks.forEach(task => {
+  store.patternTasks.forEach(task => {
     task.fabricUsage.forEach(item => {
       const key = `${item.fabricName}-${item.color}`;
       const existing = fabricMap.get(key);
       if (existing) {
         existing.totalUsed += item.length;
+        existing.totalUsed = Number(existing.totalUsed.toFixed(2));
       } else {
         fabricMap.set(key, {
           fabricName: item.fabricName,
@@ -67,7 +68,7 @@ router.get('/', (req: Request, res: Response) => {
 
   const styleCountMap = new Map<string, number>();
   let totalStyles = 0;
-  mockOrders.forEach(order => {
+  store.orders.forEach(order => {
     order.styleTags.forEach(tag => {
       styleCountMap.set(tag, (styleCountMap.get(tag) || 0) + 1);
       totalStyles++;
@@ -77,7 +78,7 @@ router.get('/', (req: Request, res: Response) => {
     .map(([style, count]) => ({
       style,
       count,
-      percentage: Number(((count / totalStyles) * 100).toFixed(1)),
+      percentage: totalStyles > 0 ? Number(((count / totalStyles) * 100).toFixed(1)) : 0,
     }))
     .sort((a, b) => b.count - a.count);
 
@@ -93,17 +94,16 @@ router.get('/', (req: Request, res: Response) => {
 
 router.get('/summary', (req: Request, res: Response) => {
   const summary = {
-    totalOrders: mockOrders.length,
-    pendingOrders: mockOrders.filter(o => ['pending', 'confirmed'].includes(o.status)).length,
-    inProgressOrders: mockOrders.filter(o =>
+    totalOrders: store.orders.length,
+    pendingOrders: store.orders.filter(o => ['pending', 'confirmed'].includes(o.status)).length,
+    inProgressOrders: store.orders.filter(o =>
       ['pattern_making', 'fabric_prep', 'sewing', 'fitting'].includes(o.status)
     ).length,
-    completedOrders: mockOrders.filter(o => ['customer_approved', 'shipping', 'completed'].includes(o.status)).length,
-    totalRevenue: mockOrders.reduce((sum, o) => sum + o.totalPrice, 0),
-    activePatterns: mockPatternTasks.filter(p => ['pending', 'in_progress'].includes(p.status)).length,
-    pendingFittings: mockPatternTasks.filter(p => p.status === 'completed').length +
-      mockOrders.filter(o => o.status === 'fitting').length,
-    totalDollTemplates: mockDollTemplates.length,
+    completedOrders: store.orders.filter(o => ['customer_approved', 'shipping', 'completed'].includes(o.status)).length,
+    totalRevenue: store.orders.reduce((sum, o) => sum + o.totalPrice, 0),
+    activePatterns: store.patternTasks.filter(p => ['pending', 'in_progress'].includes(p.status)).length,
+    pendingFittings: store.fittingRecords.filter(f => ['photo_taken', 'customer_review'].includes(f.status)).length,
+    totalDollTemplates: store.dolls.length,
   };
   res.json({ success: true, data: summary });
 });
