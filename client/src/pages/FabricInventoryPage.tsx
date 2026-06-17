@@ -57,7 +57,7 @@ export default function FabricInventoryPage() {
     try {
       const [fabricRes, purchaseRes] = await Promise.all([
         fabricInventoryApi.getAll({
-          belowSafetyStock: filterLowStock || undefined,
+          lowStock: filterLowStock ? true : undefined,
         }),
         fabricInventoryApi.getPurchaseSuggestions(),
       ]);
@@ -164,7 +164,7 @@ export default function FabricInventoryPage() {
     }
     try {
       await fabricInventoryApi.stockIn(selectedFabric.id, {
-        stockInLength: actionForm.length,
+        length: actionForm.length,
         operator: actionForm.operator,
         remark: actionForm.remark,
       });

@@ -443,21 +443,23 @@ export interface FabricInventory {
   fabricName: string;
   color: string;
   width: number;
-  widthUnit: string;
+  widthUnit?: string;
   stockLength: number;
   unit: string;
   safetyStock: number;
   supplier: string;
   purchaseCycle: number;
-  purchaseCycleUnit: string;
+  purchaseCycleUnit?: string;
   unitPrice: number;
-  currency: string;
+  currency?: string;
   remark?: string;
   createdAt: string;
   updatedAt: string;
   availableStock?: number;
   preoccupiedLength?: number;
+  isLowStock?: boolean;
   belowSafetyStock?: boolean;
+  inventoryValue?: number;
 }
 
 export interface FabricPreoccupyRecord {

@@ -130,7 +130,7 @@ export const changeOrderApi = {
 };
 
 export const fabricInventoryApi = {
-  getAll: (params?: { fabricName?: string; color?: string; supplier?: string; belowSafetyStock?: boolean }) =>
+  getAll: (params?: { fabricName?: string; color?: string; supplier?: string; lowStock?: boolean }) =>
     api.get<ApiResponse<FabricInventory[]>>('/fabric-inventory', { params }).then(r => r.data),
   getById: (id: string) =>
     api.get<ApiResponse<FabricInventory>>(`/fabric-inventory/${id}`).then(r => r.data),
@@ -144,7 +144,7 @@ export const fabricInventoryApi = {
     api.put<ApiResponse<FabricInventory>>(`/fabric-inventory/${id}`, data).then(r => r.data),
   remove: (id: string) =>
     api.delete<ApiResponse<void>>(`/fabric-inventory/${id}`).then(r => r.data),
-  stockIn: (id: string, data: { stockInLength: number; operator: string; remark?: string }) =>
+  stockIn: (id: string, data: { length: number; operator: string; remark?: string }) =>
     api.post<ApiResponse<FabricInventory>>(`/fabric-inventory/${id}/stock-in`, data).then(r => r.data),
   manualAdjust: (id: string, data: { adjustLength: number; operator: string; remark?: string }) =>
     api.post<ApiResponse<FabricInventory>>(`/fabric-inventory/${id}/manual-adjust`, data).then(r => r.data),

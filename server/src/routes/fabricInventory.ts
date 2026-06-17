@@ -201,16 +201,19 @@ router.post('/:id/manual-adjust', (req: Request, res: Response) => {
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '布料库存不存在' });
   }
-  const { newStock, operator, remark } = req.body;
-  const targetStock = Number(newStock);
-  if (targetStock < 0 || isNaN(targetStock)) {
-    return res.status(400).json({ success: false, message: '请输入有效的库存长度' });
+  const { adjustLength, operator, remark } = req.body;
+  const changeLength = Number(adjustLength);
+  if (isNaN(changeLength) || changeLength === 0) {
+    return res.status(400).json({ success: false, message: '请输入有效的调整数量' });
   }
 
   const beforeStock = store.fabricInventories[idx].stockLength;
-  const changeLength = Number((targetStock - beforeStock).toFixed(2));
+  const afterStock = Number((beforeStock + changeLength).toFixed(2));
+  if (afterStock < 0) {
+    return res.status(400).json({ success: false, message: '调整后库存不能为负数' });
+  }
 
-  store.fabricInventories[idx].stockLength = targetStock;
+  store.fabricInventories[idx].stockLength = afterStock;
   store.fabricInventories[idx].updatedAt = new Date().toISOString();
 
   const adjustRecord = store.addFabricAdjustRecord(
@@ -218,7 +221,7 @@ router.post('/:id/manual-adjust', (req: Request, res: Response) => {
     'manual_adjust',
     changeLength,
     beforeStock,
-    targetStock,
+    afterStock,
     operator || '系统',
     remark || '手动调整',
   );
