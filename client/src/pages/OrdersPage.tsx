@@ -14,8 +14,18 @@ import {
   PATTERN_STATUS_COLORS,
   FITTING_STATUS_LABELS,
   FITTING_STATUS_COLORS,
+  CommunicationRecord,
+  ChangeOrder,
+  ChangeType,
+  ChangeOrderStatus,
+  COMMUNICATION_CHANNEL_LABELS,
+  COMMUNICATION_CHANNEL_ICONS,
+  CHANGE_TYPE_LABELS,
+  CHANGE_TYPE_COLORS,
+  CHANGE_ORDER_STATUS_LABELS,
+  CHANGE_ORDER_STATUS_COLORS,
 } from '../types';
-import { orderApi, dollApi } from '../api';
+import { orderApi, dollApi, communicationApi, changeOrderApi } from '../api';
 
 const STYLE_OPTIONS = [
   '宫廷风', '复古', '礼服', '汉服', '古风', '男装',
@@ -44,6 +54,29 @@ export default function OrdersPage() {
   const [detailKeyMilestones, setDetailKeyMilestones] = useState<KeyMilestone[]>([]);
   const [detailPatterns, setDetailPatterns] = useState<PatternTask[]>([]);
   const [detailFittings, setDetailFittings] = useState<FittingRecord[]>([]);
+  const [detailCommunications, setDetailCommunications] = useState<CommunicationRecord[]>([]);
+  const [detailChangeOrders, setDetailChangeOrders] = useState<ChangeOrder[]>([]);
+  const [detailPendingChangeCount, setDetailPendingChangeCount] = useState<number>(0);
+  const [showCommunicationModal, setShowCommunicationModal] = useState<boolean>(false);
+  const [showChangeOrderModal, setShowChangeOrderModal] = useState<boolean>(false);
+  const [communicationFormData, setCommunicationFormData] = useState<any>({
+    channel: 'wechat',
+    content: '',
+    imagePlaceholders: '',
+    conclusion: '',
+    follower: '张设计师',
+  });
+  const [changeOrderFormData, setChangeOrderFormData] = useState<any>({
+    changeType: 'fabric',
+    description: '',
+    beforeValue: '',
+    afterValue: '',
+    priceDiff: 0,
+    estimatedDelayDays: 0,
+    refundNote: '',
+    operator: '店主',
+  });
+  const [previewChangeOrder, setPreviewChangeOrder] = useState<ChangeOrder | null>(null);
   const [formData, setFormData] = useState<any>({
     customerName: '',
     customerPhone: '',
@@ -65,11 +98,174 @@ export default function OrdersPage() {
         customerName: searchName || undefined,
         dollId: filterDoll || undefined,
       });
-      setOrders(res.data);
+      const ordersWithEnrich = await Promise.all(
+        res.data.map(async (order) => {
+          try {
+            const detailRes = await orderApi.getById(order.id);
+            const detailData = detailRes.data as any;
+            return {
+              ...order,
+              pendingChangeCount: detailData.pendingChangeCount || 0,
+            };
+          } catch (e) {
+            return {
+              ...order,
+              pendingChangeCount: 0,
+            };
+          }
+        })
+      );
+      setOrders(ordersWithEnrich);
     } catch (e) {
       console.error(e);
     }
     setLoading(false);
+  };
+
+  const handleCreateCommunication = async () => {
+    if (!detailOrder || !communicationFormData.content) {
+      alert('请填写沟通内容');
+      return;
+    }
+    try {
+      await communicationApi.create({
+        orderId: detailOrder.id,
+        channel: communicationFormData.channel,
+        content: communicationFormData.content,
+        imagePlaceholders: communicationFormData.imagePlaceholders
+          ? communicationFormData.imagePlaceholders.split(',').map((s: string) => s.trim())
+          : [],
+        conclusion: communicationFormData.conclusion,
+        follower: communicationFormData.follower,
+      });
+      alert('沟通记录添加成功');
+      setShowCommunicationModal(false);
+      setCommunicationFormData({
+        channel: 'wechat',
+        content: '',
+        imagePlaceholders: '',
+        conclusion: '',
+        follower: '张设计师',
+      });
+      fetchOrderDetail(detailOrder);
+    } catch (e) {
+      console.error(e);
+      alert('添加失败');
+    }
+  };
+
+  const handlePreviewChangeOrder = async () => {
+    if (!detailOrder || !changeOrderFormData.beforeValue || !changeOrderFormData.afterValue) {
+      alert('请填写变更前值和变更后值');
+      return;
+    }
+    try {
+      const res = await changeOrderApi.preview({
+        orderId: detailOrder.id,
+        changeType: changeOrderFormData.changeType,
+        beforeValue: changeOrderFormData.beforeValue,
+        afterValue: changeOrderFormData.afterValue,
+        description: changeOrderFormData.description,
+        priceDiff: changeOrderFormData.priceDiff,
+        estimatedDelayDays: changeOrderFormData.estimatedDelayDays,
+      });
+      setPreviewChangeOrder(res.data);
+      alert('预览成功，系统已计算变更影响');
+    } catch (e) {
+      console.error(e);
+      alert('预览失败');
+    }
+  };
+
+  const handleCreateChangeOrder = async () => {
+    if (!detailOrder || !changeOrderFormData.beforeValue || !changeOrderFormData.afterValue) {
+      alert('请填写变更前值和变更后值');
+      return;
+    }
+    if (changeOrderFormData.priceDiff < 0 && !changeOrderFormData.refundNote) {
+      alert('价格差异为负时，退款说明为必填项');
+      return;
+    }
+    try {
+      await changeOrderApi.create({
+        orderId: detailOrder.id,
+        changeType: changeOrderFormData.changeType,
+        description: changeOrderFormData.description,
+        beforeValue: changeOrderFormData.beforeValue,
+        afterValue: changeOrderFormData.afterValue,
+        priceDiff: changeOrderFormData.priceDiff,
+        estimatedDelayDays: changeOrderFormData.estimatedDelayDays,
+        refundNote: changeOrderFormData.refundNote,
+        operator: changeOrderFormData.operator,
+      });
+      alert('变更单创建成功');
+      setShowChangeOrderModal(false);
+      setChangeOrderFormData({
+        changeType: 'fabric',
+        description: '',
+        beforeValue: '',
+        afterValue: '',
+        priceDiff: 0,
+        estimatedDelayDays: 0,
+        refundNote: '',
+        operator: '店主',
+      });
+      setPreviewChangeOrder(null);
+      fetchOrderDetail(detailOrder);
+      fetchOrders();
+    } catch (e) {
+      console.error(e);
+      alert('创建失败');
+    }
+  };
+
+  const handleConfirmChangeOrder = async (changeOrderId: string) => {
+    if (!detailOrder) return;
+    if (!confirm('确定要通过此变更申请吗？确认后将更新订单金额和/或交付日期。')) {
+      return;
+    }
+    try {
+      const res = await changeOrderApi.confirm(changeOrderId, {
+        confirmedBy: '店主',
+      });
+      alert('变更已确认');
+      if (res.data.updatedOrder) {
+        setDetailOrder(res.data.updatedOrder);
+      }
+      fetchOrderDetail(detailOrder);
+      fetchOrders();
+    } catch (e) {
+      console.error(e);
+      alert('确认失败');
+    }
+  };
+
+  const handleRejectChangeOrder = async (changeOrderId: string) => {
+    if (!detailOrder) return;
+    const reason = prompt('请输入拒绝原因：');
+    if (!reason) {
+      alert('请填写拒绝原因');
+      return;
+    }
+    try {
+      await changeOrderApi.reject(changeOrderId, {
+        rejectedBy: '店主',
+        rejectedReason: reason,
+      });
+      alert('变更已拒绝');
+      fetchOrderDetail(detailOrder);
+      fetchOrders();
+    } catch (e) {
+      console.error(e);
+      alert('拒绝失败');
+    }
+  };
+
+  const openChangeOrderModal = (order?: Order) => {
+    if (order && !detailOrder) {
+      setDetailOrder(order);
+    }
+    setShowChangeOrderModal(true);
   };
 
   const fetchDolls = async () => {
@@ -184,6 +380,9 @@ export default function OrdersPage() {
       setDetailKeyMilestones(data.keyMilestones || []);
       setDetailPatterns(data.patternTasks || []);
       setDetailFittings(data.fittingRecords || []);
+      setDetailCommunications(data.communications || []);
+      setDetailChangeOrders(data.changeOrders || []);
+      setDetailPendingChangeCount(data.pendingChangeCount || 0);
     } catch (e) {
       console.error(e);
       setDetailOrder(order);
@@ -192,6 +391,9 @@ export default function OrdersPage() {
       setDetailKeyMilestones([]);
       setDetailPatterns([]);
       setDetailFittings([]);
+      setDetailCommunications([]);
+      setDetailChangeOrders([]);
+      setDetailPendingChangeCount(0);
     }
   };
 
@@ -298,7 +500,25 @@ export default function OrdersPage() {
                 orders.map(order => (
                   <tr key={order.id}>
                     <td>
-                      <div className="font-bold" style={{ fontSize: '13px' }}>{order.orderNumber}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-bold" style={{ fontSize: '13px' }}>{order.orderNumber}</div>
+                        {(order as any).pendingChangeCount > 0 && (
+                          <span
+                            className="badge badge-urgent"
+                            style={{
+                              background: '#fee2e2',
+                              color: '#dc2626',
+                              fontSize: '10px',
+                              padding: '2px 6px',
+                              borderRadius: '10px',
+                              animation: 'pulse 2s infinite',
+                            }}
+                            title={`有 ${(order as any).pendingChangeCount} 个待确认变更`}
+                          >
+                            ● {(order as any).pendingChangeCount}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-muted" style={{ fontSize: '11px', marginTop: '3px' }}>
                         {new Date(order.createdAt).toLocaleDateString('zh-CN')}
                       </div>
@@ -352,6 +572,15 @@ export default function OrdersPage() {
                           }}
                         >
                           查看
+                        </button>
+                        <button
+                          className="btn btn-sm btn-warning"
+                          onClick={() => {
+                            openChangeOrderModal(order);
+                          }}
+                          style={{ background: '#f59e0b', color: 'white', border: 'none' }}
+                        >
+                          需求变更
                         </button>
                         {nextStatusFlow[order.status] && (
                           <>
@@ -838,6 +1067,302 @@ export default function OrdersPage() {
                 </div>
               )}
 
+              {detailPendingChangeCount > 0 && (
+                <div
+                  style={{
+                    padding: '16px 20px',
+                    background: '#fef2f2',
+                    borderRadius: '12px',
+                    marginBottom: '20px',
+                    border: '1px solid #fecaca',
+                    borderLeft: '4px solid #ef4444',
+                  }}
+                >
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#dc2626' }}>
+                    ⚠️ 当前有 {detailPendingChangeCount} 个需求变更待确认，请及时审核处理
+                  </div>
+                </div>
+              )}
+
+              <div className="card-title mt-4">💬 客户沟通记录</div>
+              <div className="card" style={{ padding: '16px', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '13px', color: '#64748b' }}>
+                    共 {detailCommunications.length} 条沟通记录
+                  </div>
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => setShowCommunicationModal(true)}
+                  >
+                    ＋ 新增沟通记录
+                  </button>
+                </div>
+                {detailCommunications.length === 0 ? (
+                  <div className="empty-state" style={{ padding: '30px' }}>
+                    <div className="icon">💬</div>
+                    <div className="empty-state-title">暂无沟通记录</div>
+                  </div>
+                ) : (
+                  <div className="timeline">
+                    {[...detailCommunications]
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .map((comm) => (
+                        <div key={comm.id} className="timeline-item">
+                          <div className="timeline-time">
+                            {new Date(comm.createdAt).toLocaleString('zh-CN')}
+                          </div>
+                          <div className="timeline-status" style={{ color: '#3b82f6' }}>
+                            {COMMUNICATION_CHANNEL_ICONS[comm.channel as keyof typeof COMMUNICATION_CHANNEL_ICONS]}{' '}
+                            {COMMUNICATION_CHANNEL_LABELS[comm.channel as keyof typeof COMMUNICATION_CHANNEL_LABELS]}
+                          </div>
+                          <div className="timeline-note" style={{ fontSize: '13px', marginTop: '6px' }}>
+                            {comm.content}
+                          </div>
+                          {comm.imagePlaceholders && comm.imagePlaceholders.length > 0 && (
+                            <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              {comm.imagePlaceholders.map((img, idx) => (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    width: '80px',
+                                    height: '80px',
+                                    background: '#f1f5f9',
+                                    borderRadius: '8px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '11px',
+                                    color: '#94a3b8',
+                                    border: '1px dashed #cbd5e1',
+                                  }}
+                                >
+                                  📷 {img.substring(0, 8)}...
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {comm.conclusion && (
+                            <div
+                              style={{
+                                marginTop: '8px',
+                                padding: '10px 12px',
+                                background: '#f0fdf4',
+                                borderRadius: '8px',
+                                fontSize: '12.5px',
+                                color: '#166534',
+                                border: '1px solid #bbf7d0',
+                              }}
+                            >
+                              <span style={{ fontWeight: 600 }}>客户确认结论：</span>
+                              {comm.conclusion}
+                            </div>
+                          )}
+                          <div className="timeline-operator" style={{ marginTop: '6px' }}>
+                            跟进人：{comm.follower}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="card-title mt-4">📝 需求变更单</div>
+              <div className="card" style={{ padding: '16px', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '13px', color: '#64748b' }}>
+                    共 {detailChangeOrders.length} 条变更记录
+                  </div>
+                  <button
+                    className="btn btn-sm btn-warning"
+                    onClick={() => setShowChangeOrderModal(true)}
+                    style={{ background: '#f59e0b', color: 'white', border: 'none' }}
+                  >
+                    ＋ 新增变更单
+                  </button>
+                </div>
+                {detailChangeOrders.length === 0 ? (
+                  <div className="empty-state" style={{ padding: '30px' }}>
+                    <div className="icon">📝</div>
+                    <div className="empty-state-title">暂无变更记录</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {[...detailChangeOrders]
+                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .map((co) => (
+                        <div
+                          key={co.id}
+                          style={{
+                            padding: '16px',
+                            background: '#fafafa',
+                            borderRadius: '10px',
+                            border: '1px solid #e5e7eb',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <span
+                                className="tag"
+                                style={{
+                                  background: CHANGE_TYPE_COLORS[co.changeType as keyof typeof CHANGE_TYPE_COLORS] + '20',
+                                  color: CHANGE_TYPE_COLORS[co.changeType as keyof typeof CHANGE_TYPE_COLORS],
+                                  fontWeight: 600,
+                                  fontSize: '12px',
+                                }}
+                              >
+                                {CHANGE_TYPE_LABELS[co.changeType as keyof typeof CHANGE_TYPE_LABELS]}
+                              </span>
+                              <span
+                                className="badge"
+                                style={{
+                                  background: CHANGE_ORDER_STATUS_COLORS[co.status as keyof typeof CHANGE_ORDER_STATUS_COLORS] + '20',
+                                  color: CHANGE_ORDER_STATUS_COLORS[co.status as keyof typeof CHANGE_ORDER_STATUS_COLORS],
+                                  fontWeight: 600,
+                                  fontSize: '11px',
+                                }}
+                              >
+                                {CHANGE_ORDER_STATUS_LABELS[co.status as keyof typeof CHANGE_ORDER_STATUS_LABELS]}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                              申请时间：{new Date(co.createdAt).toLocaleString('zh-CN')}
+                            </div>
+                          </div>
+
+                          <div style={{ fontSize: '13.5px', marginBottom: '10px' }}>
+                            {co.description}
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', marginBottom: '10px' }}>
+                            <div>
+                              <div className="text-muted" style={{ fontSize: '11px' }}>变更内容</div>
+                              <div style={{ fontSize: '13px', fontWeight: 500 }}>
+                                <span style={{ color: '#ef4444', textDecoration: 'line-through' }}>{co.beforeValue}</span>
+                                <span style={{ margin: '0 8px', color: '#94a3b8' }}>→</span>
+                                <span style={{ color: '#22c55e', fontWeight: 600 }}>{co.afterValue}</span>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-muted" style={{ fontSize: '11px' }}>价格变动</div>
+                              <div style={{ fontSize: '13px', fontWeight: 600 }}>
+                                ¥{co.priceBefore.toLocaleString()} → ¥{co.priceAfter.toLocaleString()}
+                                <span
+                                  style={{
+                                    marginLeft: '8px',
+                                    color: co.priceDiff >= 0 ? '#22c55e' : '#ef4444',
+                                    fontSize: '12px',
+                                  }}
+                                >
+                                  {co.priceDiff >= 0 ? '+' : ''}¥{co.priceDiff.toLocaleString()}
+                                </span>
+                              </div>
+                              {co.supplementAmount > 0 && (
+                                <div style={{ fontSize: '12px', color: '#f59e0b', marginTop: '2px' }}>
+                                  补款金额：¥{co.supplementAmount.toLocaleString()}
+                                </div>
+                              )}
+                            </div>
+                            {co.estimatedDelayDays > 0 && (
+                              <div>
+                                <div className="text-muted" style={{ fontSize: '11px' }}>预计延期</div>
+                                <div style={{ fontSize: '13px', fontWeight: 500, color: '#f59e0b' }}>
+                                  {co.estimatedDelayDays} 天
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {co.stageImpact && (
+                            <div
+                              style={{
+                                padding: '10px 12px',
+                                background: '#fefce8',
+                                borderRadius: '8px',
+                                fontSize: '12.5px',
+                                color: '#854d0e',
+                                marginBottom: '12px',
+                                border: '1px solid #fef08a',
+                              }}
+                            >
+                              <span style={{ fontWeight: 600 }}>制作阶段影响：</span>
+                              {co.stageImpact}
+                            </div>
+                          )}
+
+                          {co.status === 'rejected' && co.rejectedReason && (
+                            <div
+                              style={{
+                                padding: '10px 12px',
+                                background: '#fef2f2',
+                                borderRadius: '8px',
+                                fontSize: '12.5px',
+                                color: '#991b1b',
+                                marginBottom: '12px',
+                                border: '1px solid #fecaca',
+                              }}
+                            >
+                              <span style={{ fontWeight: 600 }}>拒绝原因：</span>
+                              {co.rejectedReason}
+                              {co.rejectedBy && <span>（{co.rejectedBy}）</span>}
+                            </div>
+                          )}
+
+                          {co.status === 'confirmed' && co.confirmedBy && (
+                            <div
+                              style={{
+                                padding: '10px 12px',
+                                background: '#f0fdf4',
+                                borderRadius: '8px',
+                                fontSize: '12.5px',
+                                color: '#166534',
+                                marginBottom: '12px',
+                                border: '1px solid #bbf7d0',
+                              }}
+                            >
+                              <span style={{ fontWeight: 600 }}>确认人：</span>
+                              {co.confirmedBy}
+                              {co.confirmedAt && (
+                                <span style={{ marginLeft: '10px' }}>
+                                  {new Date(co.confirmedAt).toLocaleString('zh-CN')}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            {co.status === 'pending' && (
+                              <>
+                                <button
+                                  className="btn btn-sm btn-success"
+                                  onClick={() => handleConfirmChangeOrder(co.id)}
+                                  style={{ background: '#22c55e', color: 'white', border: 'none' }}
+                                >
+                                  确认通过
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-danger"
+                                  onClick={() => handleRejectChangeOrder(co.id)}
+                                >
+                                  拒绝
+                                </button>
+                              </>
+                            )}
+                            {co.status === 'confirmed' && (
+                              <button
+                                className="btn btn-sm"
+                                disabled
+                                style={{ background: '#e5e7eb', color: '#6b7280', cursor: 'not-allowed' }}
+                              >
+                                已确认
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
               <div className="card-title mt-4">订单轨迹</div>
               <div className="timeline">
                 {detailOrder.history.map((h, idx) => (
@@ -859,6 +1384,256 @@ export default function OrdersPage() {
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setDetailOrder(null)}>关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCommunicationModal && detailOrder && (
+        <div className="modal-overlay" onClick={() => setShowCommunicationModal(false)}>
+          <div className="modal" style={{ maxWidth: '600px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">💬 新增沟通记录</h3>
+              <button className="modal-close" onClick={() => setShowCommunicationModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label required">沟通渠道</label>
+                  <select
+                    className="form-select"
+                    value={communicationFormData.channel}
+                    onChange={e => setCommunicationFormData({ ...communicationFormData, channel: e.target.value })}
+                  >
+                    {Object.entries(COMMUNICATION_CHANNEL_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {COMMUNICATION_CHANNEL_ICONS[key as keyof typeof COMMUNICATION_CHANNEL_ICONS]} {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label required">跟进人</label>
+                  <input
+                    className="form-input"
+                    value={communicationFormData.follower}
+                    onChange={e => setCommunicationFormData({ ...communicationFormData, follower: e.target.value })}
+                    placeholder="请输入跟进人姓名"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label required">沟通内容</label>
+                <textarea
+                  className="form-textarea"
+                  value={communicationFormData.content}
+                  onChange={e => setCommunicationFormData({ ...communicationFormData, content: e.target.value })}
+                  placeholder="请详细记录沟通内容..."
+                  rows={4}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">关联图片占位</label>
+                <input
+                  className="form-input"
+                  value={communicationFormData.imagePlaceholders}
+                  onChange={e => setCommunicationFormData({ ...communicationFormData, imagePlaceholders: e.target.value })}
+                  placeholder="多个图片占位用逗号分隔"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">客户确认结论</label>
+                <textarea
+                  className="form-textarea"
+                  value={communicationFormData.conclusion}
+                  onChange={e => setCommunicationFormData({ ...communicationFormData, conclusion: e.target.value })}
+                  placeholder="客户确认的结论或达成的共识"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowCommunicationModal(false)}>取消</button>
+              <button className="btn btn-primary" onClick={handleCreateCommunication}>提交</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showChangeOrderModal && detailOrder && (
+        <div className="modal-overlay" onClick={() => setShowChangeOrderModal(false)}>
+          <div className="modal" style={{ maxWidth: '700px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">📝 新增需求变更单</h3>
+              <button className="modal-close" onClick={() => {
+                setShowChangeOrderModal(false);
+                setPreviewChangeOrder(null);
+              }}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label required">变更类型</label>
+                  <select
+                    className="form-select"
+                    value={changeOrderFormData.changeType}
+                    onChange={e => setChangeOrderFormData({ ...changeOrderFormData, changeType: e.target.value })}
+                  >
+                    {Object.entries(CHANGE_TYPE_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label required">操作人</label>
+                  <input
+                    className="form-input"
+                    value={changeOrderFormData.operator}
+                    onChange={e => setChangeOrderFormData({ ...changeOrderFormData, operator: e.target.value })}
+                    placeholder="请输入操作人姓名"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">变更描述</label>
+                <textarea
+                  className="form-textarea"
+                  value={changeOrderFormData.description}
+                  onChange={e => setChangeOrderFormData({ ...changeOrderFormData, description: e.target.value })}
+                  placeholder="请详细描述变更原因和内容..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label required">变更前值</label>
+                  <input
+                    className="form-input"
+                    value={changeOrderFormData.beforeValue}
+                    onChange={e => setChangeOrderFormData({ ...changeOrderFormData, beforeValue: e.target.value })}
+                    placeholder="例如：真丝缎面"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label required">变更后值</label>
+                  <input
+                    className="form-input"
+                    value={changeOrderFormData.afterValue}
+                    onChange={e => setChangeOrderFormData({ ...changeOrderFormData, afterValue: e.target.value })}
+                    placeholder="例如：雪纺"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">价格差异（元）</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={changeOrderFormData.priceDiff}
+                    onChange={e => setChangeOrderFormData({ ...changeOrderFormData, priceDiff: parseFloat(e.target.value) || 0 })}
+                    placeholder="正数表示加价，负数表示减价"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">预计延期天数</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    value={changeOrderFormData.estimatedDelayDays}
+                    onChange={e => setChangeOrderFormData({ ...changeOrderFormData, estimatedDelayDays: parseInt(e.target.value) || 0 })}
+                    placeholder="预计延期的天数"
+                  />
+                </div>
+              </div>
+
+              {changeOrderFormData.priceDiff < 0 && (
+                <div className="form-group">
+                  <label className="form-label required" style={{ color: '#dc2626' }}>退款说明</label>
+                  <textarea
+                    className="form-textarea"
+                    style={{ borderColor: '#ef4444', borderWidth: '2px' }}
+                    value={changeOrderFormData.refundNote}
+                    onChange={e => setChangeOrderFormData({ ...changeOrderFormData, refundNote: e.target.value })}
+                    placeholder="请详细说明退款原因、退款方式和时间安排..."
+                    rows={3}
+                  />
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+                <button
+                  className="btn btn-outline"
+                  style={{ flex: 1 }}
+                  onClick={handlePreviewChangeOrder}
+                >
+                  🔍 预览变更影响
+                </button>
+              </div>
+
+              {previewChangeOrder && (
+                <div
+                  style={{
+                    padding: '16px',
+                    background: '#f0fdf4',
+                    borderRadius: '10px',
+                    marginBottom: '16px',
+                    border: '1px solid #bbf7d0',
+                  }}
+                >
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#166534', marginBottom: '10px' }}>
+                    📊 变更影响预览
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
+                    <div>
+                      <span className="text-muted">原价：</span>
+                      <span style={{ fontWeight: 600 }}>¥{previewChangeOrder.priceBefore.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted">现价：</span>
+                      <span style={{ fontWeight: 600 }}>¥{previewChangeOrder.priceAfter.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted">价格变动：</span>
+                      <span style={{ fontWeight: 600, color: previewChangeOrder.priceDiff >= 0 ? '#22c55e' : '#ef4444' }}>
+                        {previewChangeOrder.priceDiff >= 0 ? '+' : ''}¥{previewChangeOrder.priceDiff.toLocaleString()}
+                      </span>
+                    </div>
+                    {previewChangeOrder.supplementAmount > 0 && (
+                      <div>
+                        <span className="text-muted">补款金额：</span>
+                        <span style={{ fontWeight: 600, color: '#f59e0b' }}>¥{previewChangeOrder.supplementAmount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {previewChangeOrder.estimatedDelayDays > 0 && (
+                      <div>
+                        <span className="text-muted">预计延期：</span>
+                        <span style={{ fontWeight: 600, color: '#f59e0b' }}>{previewChangeOrder.estimatedDelayDays} 天</span>
+                      </div>
+                    )}
+                  </div>
+                  {previewChangeOrder.stageImpact && (
+                    <div style={{ marginTop: '10px', fontSize: '13px' }}>
+                      <span className="text-muted">阶段影响：</span>
+                      <span style={{ color: '#854d0e' }}>{previewChangeOrder.stageImpact}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => {
+                setShowChangeOrderModal(false);
+                setPreviewChangeOrder(null);
+              }}>取消</button>
+              <button className="btn btn-primary" onClick={handleCreateChangeOrder}>提交</button>
             </div>
           </div>
         </div>

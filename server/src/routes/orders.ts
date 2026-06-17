@@ -33,6 +33,28 @@ router.get('/', (req: Request, res: Response) => {
   res.json({ success: true, data: enriched });
 });
 
+const CHANNEL_LABELS_CN: Record<string, string> = {
+  wechat: '微信',
+  phone: '电话',
+  face: '面谈',
+  email: '邮件',
+  other: '其他',
+};
+
+const CHANGE_TYPE_LABELS_CN: Record<string, string> = {
+  fabric: '更换布料',
+  accessory: '增减配件',
+  style: '调整风格',
+  delivery_date: '修改交付日期',
+  quantity: '追加套装件数',
+};
+
+const CHANGE_ORDER_STATUS_LABELS_CN: Record<string, string> = {
+  pending: '待确认',
+  confirmed: '已确认',
+  rejected: '已拒绝',
+};
+
 router.get('/:id', (req: Request, res: Response) => {
   const order = store.orders.find(o => o.id === req.params.id);
   if (!order) {
@@ -43,6 +65,19 @@ router.get('/:id', (req: Request, res: Response) => {
   const keyMilestones = getKeyMilestones(order.id);
   const patternTasks = store.patternTasks.filter(p => p.orderId === order.id);
   const fittingRecords = store.fittingRecords.filter(f => f.orderId === order.id);
+  const communications = store.communications
+    .filter(c => c.orderId === order.id)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .map(c => ({ ...c, channelLabel: CHANNEL_LABELS_CN[c.channel] || c.channel }));
+  const changeOrders = store.changeOrders
+    .filter(c => c.orderId === order.id)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .map(c => ({
+      ...c,
+      changeTypeLabel: CHANGE_TYPE_LABELS_CN[c.changeType] || c.changeType,
+      statusLabel: CHANGE_ORDER_STATUS_LABELS_CN[c.status] || c.status,
+    }));
+  const pendingChangeCount = changeOrders.filter(c => c.status === 'pending').length;
   res.json({
     success: true,
     data: {
@@ -53,6 +88,9 @@ router.get('/:id', (req: Request, res: Response) => {
       keyMilestones,
       patternTasks,
       fittingRecords,
+      communications,
+      changeOrders,
+      pendingChangeCount,
     },
   });
 });

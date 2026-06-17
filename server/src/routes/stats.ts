@@ -118,4 +118,79 @@ router.get('/delivery-risk', (req: Request, res: Response) => {
   res.json({ success: true, data });
 });
 
+const CHANGE_TYPE_LABELS_CN: Record<string, string> = {
+  fabric: '更换布料',
+  accessory: '增减配件',
+  style: '调整风格',
+  delivery_date: '修改交付日期',
+  quantity: '追加套装件数',
+};
+
+router.get('/change-analysis', (req: Request, res: Response) => {
+  const confirmedChanges = store.changeOrders.filter(c => c.status === 'confirmed');
+  const allChanges = store.changeOrders;
+  const totalChanges = confirmedChanges.length;
+
+  const typeCountMap = new Map<string, number>();
+  let totalSupplement = 0;
+  let totalDelay = 0;
+  const dollChangeCountMap = new Map<string, number>();
+  const pendingCount = allChanges.filter(c => c.status === 'pending').length;
+
+  confirmedChanges.forEach(change => {
+    typeCountMap.set(change.changeType, (typeCountMap.get(change.changeType) || 0) + 1);
+    totalSupplement += change.supplementAmount;
+    totalDelay += change.estimatedDelayDays;
+
+    const order = store.orders.find(o => o.id === change.orderId);
+    if (order) {
+      dollChangeCountMap.set(order.dollTemplateId, (dollChangeCountMap.get(order.dollTemplateId) || 0) + 1);
+    }
+  });
+
+  const changeTypeDistribution = Array.from(typeCountMap.entries())
+    .map(([type, count]) => ({
+      type,
+      label: CHANGE_TYPE_LABELS_CN[type] || type,
+      count,
+      percentage: totalChanges > 0 ? Number(((count / totalChanges) * 100).toFixed(1)) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const remainingTypes = ['fabric', 'accessory', 'style', 'delivery_date', 'quantity'];
+  remainingTypes.forEach(type => {
+    if (!typeCountMap.has(type)) {
+      changeTypeDistribution.push({
+        type,
+        label: CHANGE_TYPE_LABELS_CN[type] || type,
+        count: 0,
+        percentage: 0,
+      });
+    }
+  });
+
+  const avgSupplementAmount = totalChanges > 0 ? Number((totalSupplement / totalChanges).toFixed(2)) : 0;
+  const avgDelayDays = totalChanges > 0 ? Number((totalDelay / totalChanges).toFixed(1)) : 0;
+
+  const topDollModel = Array.from(dollChangeCountMap.entries())
+    .map(([dollId, changeCount]) => ({
+      dollId,
+      dollName: store.getDollName(dollId),
+      changeCount,
+    }))
+    .sort((a, b) => b.changeCount - a.changeCount)
+    .slice(0, 5);
+
+  const data = {
+    changeTypeDistribution,
+    avgSupplementAmount,
+    avgDelayDays,
+    topDollModel,
+    pendingConfirmCount: pendingCount,
+    totalChanges,
+  };
+
+  res.json({ success: true, data });
+});
+
 export default router;

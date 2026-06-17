@@ -168,3 +168,53 @@ export interface DeliveryRiskData {
   highReworkOrders: DeliveryRiskItem[];
   stageDurations: StageDuration[];
 }
+
+export type CommunicationChannel = 'wechat' | 'phone' | 'face' | 'email' | 'other';
+
+export interface CommunicationRecord {
+  id: string;
+  orderId: string;
+  channel: CommunicationChannel;
+  content: string;
+  imagePlaceholders: string[];
+  conclusion: string;
+  follower: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ChangeType = 'fabric' | 'accessory' | 'style' | 'delivery_date' | 'quantity';
+
+export type ChangeOrderStatus = 'pending' | 'confirmed' | 'rejected';
+
+export interface ChangeOrder {
+  id: string;
+  orderId: string;
+  changeType: ChangeType;
+  description: string;
+  beforeValue: string;
+  afterValue: string;
+  priceBefore: number;
+  priceAfter: number;
+  priceDiff: number;
+  supplementAmount: number;
+  estimatedDelayDays: number;
+  stageImpact: string;
+  status: ChangeOrderStatus;
+  refundNote?: string;
+  confirmedBy?: string;
+  confirmedAt?: string;
+  rejectedBy?: string;
+  rejectedReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChangeAnalysisData {
+  changeTypeDistribution: { type: ChangeType; label: string; count: number; percentage: number }[];
+  avgSupplementAmount: number;
+  avgDelayDays: number;
+  topDollModel: { dollId: string; dollName: string; changeCount: number }[];
+  pendingConfirmCount: number;
+  totalChanges: number;
+}

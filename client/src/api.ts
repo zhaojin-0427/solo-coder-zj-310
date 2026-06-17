@@ -8,6 +8,9 @@ import {
   SummaryData,
   StageInfo,
   DeliveryRiskData,
+  CommunicationRecord,
+  ChangeOrder,
+  ChangeAnalysisData,
 } from './types';
 
 const api = axios.create({
@@ -87,4 +90,36 @@ export const statsApi = {
     api.get<ApiResponse<SummaryData>>('/stats/summary').then(r => r.data),
   getDeliveryRisk: () =>
     api.get<ApiResponse<DeliveryRiskData>>('/stats/delivery-risk').then(r => r.data),
+  getChangeAnalysis: () =>
+    api.get<ApiResponse<ChangeAnalysisData>>('/stats/change-analysis').then(r => r.data),
+};
+
+export const communicationApi = {
+  getAll: (params?: { orderId?: string }) =>
+    api.get<ApiResponse<CommunicationRecord[]>>('/communications', { params }).then(r => r.data),
+  getById: (id: string) =>
+    api.get<ApiResponse<CommunicationRecord>>(`/communications/${id}`).then(r => r.data),
+  create: (data: Partial<CommunicationRecord> & { orderId: string; channel: string; content: string; follower: string }) =>
+    api.post<ApiResponse<CommunicationRecord>>('/communications', data).then(r => r.data),
+  update: (id: string, data: Partial<CommunicationRecord>) =>
+    api.put<ApiResponse<CommunicationRecord>>(`/communications/${id}`, data).then(r => r.data),
+  remove: (id: string) =>
+    api.delete<ApiResponse<void>>(`/communications/${id}`).then(r => r.data),
+};
+
+export const changeOrderApi = {
+  getAll: (params?: { orderId?: string; status?: string }) =>
+    api.get<ApiResponse<ChangeOrder[]>>('/change-orders', { params }).then(r => r.data),
+  getById: (id: string) =>
+    api.get<ApiResponse<ChangeOrder>>(`/change-orders/${id}`).then(r => r.data),
+  preview: (data: { orderId: string; changeType: string; beforeValue: string; afterValue: string; description?: string; priceDiff?: number; estimatedDelayDays?: number }) =>
+    api.post<ApiResponse<ChangeOrder>>('/change-orders/preview', data).then(r => r.data),
+  create: (data: Partial<ChangeOrder> & { orderId: string; changeType: string; beforeValue: string; afterValue: string; operator: string }) =>
+    api.post<ApiResponse<ChangeOrder>>('/change-orders', data).then(r => r.data),
+  confirm: (id: string, data: { confirmedBy: string }) =>
+    api.patch<ApiResponse<{ changeOrder: ChangeOrder; updatedOrder?: Order }>>(`/change-orders/${id}/confirm`, data).then(r => r.data),
+  reject: (id: string, data: { rejectedBy: string; rejectedReason: string }) =>
+    api.patch<ApiResponse<ChangeOrder>>(`/change-orders/${id}/reject`, data).then(r => r.data),
+  remove: (id: string) =>
+    api.delete<ApiResponse<void>>(`/change-orders/${id}`).then(r => r.data),
 };

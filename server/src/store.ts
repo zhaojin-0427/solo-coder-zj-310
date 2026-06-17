@@ -1,5 +1,5 @@
-import { DollTemplate, Order, PatternTask, FittingRecord } from './types';
-import { mockDollTemplates, mockOrders, mockPatternTasks, mockFittingRecords } from './data';
+import { DollTemplate, Order, PatternTask, FittingRecord, CommunicationRecord, ChangeOrder } from './types';
+import { mockDollTemplates, mockOrders, mockPatternTasks, mockFittingRecords, mockCommunications, mockChangeOrders } from './data';
 
 class DataStore {
   private static instance: DataStore;
@@ -7,6 +7,8 @@ class DataStore {
   public orders: Order[];
   public patternTasks: PatternTask[];
   public fittingRecords: FittingRecord[];
+  public communications: CommunicationRecord[];
+  public changeOrders: ChangeOrder[];
   private deletedDolls: Map<string, DollTemplate> = new Map();
 
   private constructor() {
@@ -14,6 +16,8 @@ class DataStore {
     this.orders = [...mockOrders];
     this.patternTasks = [...mockPatternTasks];
     this.fittingRecords = [...mockFittingRecords];
+    this.communications = [...mockCommunications];
+    this.changeOrders = [...mockChangeOrders];
   }
 
   public static getInstance(): DataStore {

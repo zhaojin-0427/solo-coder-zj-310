@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StatsData, SummaryData, DeliveryRiskData, StageDuration, BusinessStage } from '../types';
+import { StatsData, SummaryData, DeliveryRiskData, StageDuration, BusinessStage, ChangeAnalysisData, ChangeType, CHANGE_TYPE_LABELS, CHANGE_TYPE_COLORS } from '../types';
 import { statsApi, orderApi } from '../api';
 
 const PIE_COLORS = ['#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#14b8a6', '#22c55e', '#f59e0b', '#f97316'];
@@ -82,23 +82,104 @@ function DonutChart({
   );
 }
 
+function ChangeDonutChart({
+  data,
+}: {
+  data: { type: ChangeType; label: string; count: number; percentage: number }[];
+}) {
+  const total = data.reduce((sum, d) => sum + d.count, 0);
+  const radius = 70;
+  const innerRadius = 44;
+  const strokeWidth = radius - innerRadius;
+  const circumference = 2 * Math.PI * ((radius + innerRadius) / 2);
+
+  let offset = 0;
+
+  return (
+    <div className="donut-chart-container">
+      <svg width="180" height="180" viewBox="0 0 180 180">
+        <circle
+          cx="90"
+          cy="90"
+          r={(radius + innerRadius) / 2}
+          fill="none"
+          stroke="#f1f5f9"
+          strokeWidth={strokeWidth}
+        />
+        {data.map((d, idx) => {
+          const percent = d.count / total;
+          const dashArray = `${percent * circumference} ${circumference}`;
+          const dashOffset = -offset * circumference;
+          offset += percent;
+          return (
+            <circle
+              key={idx}
+              cx="90"
+              cy="90"
+              r={(radius + innerRadius) / 2}
+              fill="none"
+              stroke={CHANGE_TYPE_COLORS[d.type]}
+              strokeWidth={strokeWidth}
+              strokeDasharray={dashArray}
+              strokeDashoffset={dashOffset}
+              transform="rotate(-90 90 90)"
+              style={{ transition: 'all 0.6s ease' }}
+            />
+          );
+        })}
+        <text
+          x="90"
+          y="82"
+          textAnchor="middle"
+          style={{ fontSize: '26px', fontWeight: 700, fill: '#0f172a' }}
+        >
+          {total}
+        </text>
+        <text
+          x="90"
+          y="102"
+          textAnchor="middle"
+          style={{ fontSize: '11px', fill: '#64748b', fontWeight: 500 }}
+        >
+          总变更 {total} 次
+        </text>
+      </svg>
+      <div className="donut-legend">
+        {data.map((d, idx) => (
+          <div key={idx} className="donut-legend-item">
+            <div
+              className="donut-legend-color"
+              style={{ background: CHANGE_TYPE_COLORS[d.type] }}
+            />
+            <span className="donut-legend-text">{d.label}</span>
+            <span className="donut-legend-percent">{d.count} 次 · {d.percentage}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function StatsPage() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [riskData, setRiskData] = useState<DeliveryRiskData | null>(null);
+  const [changeAnalysis, setChangeAnalysis] = useState<ChangeAnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [s1, s2, s3] = await Promise.all([
+      const [s1, s2, s3, s4] = await Promise.all([
         statsApi.getStats(),
         statsApi.getSummary(),
         statsApi.getDeliveryRisk(),
+        statsApi.getChangeAnalysis(),
       ]);
       setStats(s1.data);
       setSummary(s2.data);
       setRiskData(s3.data);
+      setChangeAnalysis(s4.data);
     } catch (e) {
       console.error(e);
     }
@@ -178,6 +259,88 @@ export default function StatsPage() {
                 样衣等待客户反馈
               </div>
             </div>
+          </div>
+
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-label">总变更次数</div>
+              <div className="stat-value">{changeAnalysis?.totalChanges || 0}</div>
+              <div className="stat-trend">
+                待确认 <strong style={{ color: 'var(--warning)' }}>{changeAnalysis?.pendingConfirmCount || 0}</strong> 单
+              </div>
+            </div>
+            <div className="stat-card blue">
+              <div className="stat-label">平均补款金额</div>
+              <div className="stat-value" style={{ fontSize: '26px' }}>
+                ¥{changeAnalysis?.avgSupplementAmount || 0}
+              </div>
+              <div className="stat-trend">
+                变更导致的价格调整
+              </div>
+            </div>
+            <div className="stat-card green">
+              <div className="stat-label">平均延期天数</div>
+              <div className="stat-value">
+                {changeAnalysis?.avgDelayDays || 0}
+                <span style={{ fontSize: '18px', marginLeft: '4px', fontWeight: 500 }}>天</span>
+              </div>
+              <div className="stat-trend">
+                变更导致的交期延误
+              </div>
+            </div>
+            <div className="stat-card orange">
+              <div className="stat-label">待确认变更</div>
+              <div className="stat-value" style={{ color: '#dc2626' }}>
+                {changeAnalysis?.pendingConfirmCount || 0}
+                <span style={{ fontSize: '18px', marginLeft: '4px', fontWeight: 500 }}>单</span>
+              </div>
+              <div className="stat-trend" style={{ color: '#dc2626', fontWeight: 600 }}>
+                需及时审核处理
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 className="card-title">📊 各类变更占比</h3>
+            {changeAnalysis && changeAnalysis.changeTypeDistribution.length > 0 ? (
+              <ChangeDonutChart data={changeAnalysis.changeTypeDistribution} />
+            ) : (
+              <div className="empty-state">暂无数据</div>
+            )}
+          </div>
+
+          <div className="card">
+            <h3 className="card-title">🔝 变更频次最高的娃体型号</h3>
+            {changeAnalysis && changeAnalysis.topDollModel.length > 0 ? (
+              <div className="bar-chart">
+                {changeAnalysis.topDollModel.map((item, idx) => {
+                  const maxCount = Math.max(...changeAnalysis.topDollModel.map(d => d.changeCount), 1);
+                  return (
+                    <div key={idx} className="bar-chart-item">
+                      <div className="bar-chart-label">{item.dollName}</div>
+                      <div className="bar-chart-track">
+                        <div
+                          className={
+                            'bar-chart-fill ' +
+                            (idx === 0 ? '' : idx === 1 ? 'blue' : idx === 2 ? 'green' : 'orange')
+                          }
+                          style={{
+                            width: `${Math.max((item.changeCount / maxCount) * 100, 5)}%`,
+                          }}
+                        >
+                          {item.changeCount > 0 ? `${item.changeCount} 次变更` : ''}
+                        </div>
+                      </div>
+                      <div className="bar-chart-value">
+                        {item.changeCount} 次变更
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="empty-state">暂无数据</div>
+            )}
           </div>
 
           <div className="card">
@@ -587,7 +750,7 @@ export default function StatsPage() {
           </div>
 
           <div className="card">
-            <h3 className="card-title">�💡 智能经营建议</h3>
+            <h3 className="card-title">💡 智能经营建议</h3>
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
@@ -649,6 +812,24 @@ export default function StatsPage() {
                 <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                   累计营收 <strong>¥{(summary?.totalRevenue || 0).toLocaleString()}</strong>，平均客单价
                   <strong> ¥{summary?.totalOrders ? Math.round(summary.totalRevenue / summary.totalOrders) : 0}</strong>，可推出高端套餐提升单价。
+                </div>
+              </div>
+              <div style={{
+                padding: '18px',
+                background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+                borderRadius: '12px',
+                borderLeft: '4px solid #f97316',
+              }}>
+                <div style={{ fontSize: '22px', marginBottom: '8px' }}>🔄</div>
+                <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '6px' }}>需求变更管理</div>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                  {changeAnalysis && changeAnalysis.changeTypeDistribution.length > 0 ? (
+                    <>
+                      <strong>{changeAnalysis.changeTypeDistribution[0].label}</strong>（占比{changeAnalysis.changeTypeDistribution[0].percentage}%）为最常见变更类型，建议在订单确认前与客户充分沟通，减少后续变更。
+                    </>
+                  ) : (
+                    '暂无需求变更数据，建议建立变更管理流程，提前防控变更风险。'
+                  )}
                 </div>
               </div>
             </div>

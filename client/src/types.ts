@@ -70,6 +70,9 @@ export interface Order {
   history: OrderStatusHistory[];
   dollName?: string;
   stageInfo?: StageInfo;
+  communications?: CommunicationRecord[];
+  changeOrders?: ChangeOrder[];
+  pendingChangeCount?: number;
 }
 
 export interface PatternPiece {
@@ -295,3 +298,100 @@ export const FITTING_STATUS_COLORS: Record<FittingStatus, string> = {
   rework_needed: '#ef4444',
   approved: '#22c55e',
 };
+
+export type CommunicationChannel = 'wechat' | 'phone' | 'face' | 'email' | 'other';
+
+export const COMMUNICATION_CHANNEL_LABELS: Record<CommunicationChannel, string> = {
+  wechat: '微信',
+  phone: '电话',
+  face: '面谈',
+  email: '邮件',
+  other: '其他',
+};
+
+export const COMMUNICATION_CHANNEL_ICONS: Record<CommunicationChannel, string> = {
+  wechat: '💬',
+  phone: '📞',
+  face: '👥',
+  email: '📧',
+  other: '📝',
+};
+
+export interface CommunicationRecord {
+  id: string;
+  orderId: string;
+  channel: CommunicationChannel;
+  channelLabel: string;
+  content: string;
+  imagePlaceholders: string[];
+  conclusion: string;
+  follower: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ChangeType = 'fabric' | 'accessory' | 'style' | 'delivery_date' | 'quantity';
+
+export type ChangeOrderStatus = 'pending' | 'confirmed' | 'rejected';
+
+export const CHANGE_TYPE_LABELS: Record<ChangeType, string> = {
+  fabric: '更换布料',
+  accessory: '增减配件',
+  style: '调整风格',
+  delivery_date: '修改交付日期',
+  quantity: '追加套装件数',
+};
+
+export const CHANGE_TYPE_COLORS: Record<ChangeType, string> = {
+  fabric: '#ef4444',
+  accessory: '#f97316',
+  style: '#8b5cf6',
+  delivery_date: '#3b82f6',
+  quantity: '#06b6d4',
+};
+
+export const CHANGE_ORDER_STATUS_LABELS: Record<ChangeOrderStatus, string> = {
+  pending: '待确认',
+  confirmed: '已确认',
+  rejected: '已拒绝',
+};
+
+export const CHANGE_ORDER_STATUS_COLORS: Record<ChangeOrderStatus, string> = {
+  pending: '#f59e0b',
+  confirmed: '#22c55e',
+  rejected: '#ef4444',
+};
+
+export interface ChangeOrder {
+  id: string;
+  orderId: string;
+  changeType: ChangeType;
+  changeTypeLabel: string;
+  description: string;
+  beforeValue: string;
+  afterValue: string;
+  priceBefore: number;
+  priceAfter: number;
+  priceDiff: number;
+  supplementAmount: number;
+  estimatedDelayDays: number;
+  stageImpact: string;
+  status: ChangeOrderStatus;
+  statusLabel: string;
+  refundNote?: string;
+  confirmedBy?: string;
+  confirmedAt?: string;
+  rejectedBy?: string;
+  rejectedReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChangeAnalysisData {
+  changeTypeDistribution: { type: ChangeType; label: string; count: number; percentage: number }[];
+  avgSupplementAmount: number;
+  avgDelayDays: number;
+  topDollModel: { dollId: string; dollName: string; changeCount: number }[];
+  pendingConfirmCount: number;
+  totalChanges: number;
+}
