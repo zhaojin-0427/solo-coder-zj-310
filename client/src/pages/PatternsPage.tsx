@@ -5,8 +5,11 @@ import {
   DollTemplate,
   PATTERN_STATUS_LABELS,
   PATTERN_STATUS_COLORS,
+  FabricPreoccupyRecord,
+  FABRIC_PREOCCUPY_STATUS_LABELS,
+  FABRIC_PREOCCUPY_STATUS_COLORS,
 } from '../types';
-import { patternApi, orderApi, dollApi } from '../api';
+import { patternApi, orderApi, dollApi, fabricInventoryApi } from '../api';
 
 export default function PatternsPage() {
   const [tasks, setTasks] = useState<PatternTask[]>([]);
@@ -17,6 +20,7 @@ export default function PatternsPage() {
   const [searchDesigner, setSearchDesigner] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [detailTask, setDetailTask] = useState<PatternTask | null>(null);
+  const [preoccupyMap, setPreoccupyMap] = useState<Record<string, FabricPreoccupyRecord[]>>({});
   const [formData, setFormData] = useState<any>({
     orderId: '',
     designer: '',
@@ -35,6 +39,18 @@ export default function PatternsPage() {
         designer: searchDesigner || undefined,
       });
       setTasks(res.data);
+      
+      const newPreoccupyMap: Record<string, FabricPreoccupyRecord[]> = {};
+      for (const task of res.data) {
+        try {
+          const preRes = await fabricInventoryApi.getByPattern(task.id);
+          newPreoccupyMap[task.id] = preRes.data;
+        } catch (e) {
+          console.error('获取预占记录失败:', task.id, e);
+          newPreoccupyMap[task.id] = [];
+        }
+      }
+      setPreoccupyMap(newPreoccupyMap);
     } catch (e) {
       console.error(e);
     }
@@ -254,16 +270,66 @@ export default function PatternsPage() {
                         </span>
                       </td>
                       <td>
-                        <span style={{
-                          background: '#dbeafe',
-                          color: '#1d4ed8',
-                          padding: '4px 10px',
-                          borderRadius: '8px',
-                          fontWeight: 600,
-                          fontSize: '12.5px',
-                        }}>
-                          {task.fabricUsage.length} 种
-                        </span>
+                        <div>
+                          <span style={{
+                            background: '#dbeafe',
+                            color: '#1d4ed8',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            fontWeight: 600,
+                            fontSize: '12.5px',
+                          }}>
+                            {task.fabricUsage.length} 种
+                          </span>
+                          {preoccupyMap[task.id] && preoccupyMap[task.id].length > 0 && (
+                            <div style={{ marginTop: '8px' }}>
+                              {preoccupyMap[task.id].some(r => r.status === 'pending_purchase') && (
+                                <div style={{
+                                  fontSize: '11px',
+                                  color: '#dc2626',
+                                  fontWeight: 600,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}>
+                                  ⚠️ 库存不足，待采购
+                                </div>
+                              )}
+                              {preoccupyMap[task.id].every(r => r.status !== 'pending_purchase') && (
+                                <div style={{
+                                  fontSize: '11px',
+                                  color: '#059669',
+                                  fontWeight: 600,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}>
+                                  ✅ 布料已预占
+                                </div>
+                              )}
+                              <div style={{
+                                fontSize: '11px',
+                                color: '#6b7280',
+                                marginTop: '2px',
+                              }}>
+                                共预占 {preoccupyMap[task.id].reduce((sum, r) => sum + r.preoccupyLength, 0).toFixed(2)} 米
+                              </div>
+                            </div>
+                          )}
+                          {(!preoccupyMap[task.id] || preoccupyMap[task.id].length === 0) && task.fabricUsage.length > 0 && (
+                            <div style={{
+                              fontSize: '11px',
+                              color: '#f59e0b',
+                              fontWeight: 600,
+                              marginTop: '8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}>
+                              ⏳ 未预占
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{task.actualHours || task.estimatedHours}h</div>
@@ -573,6 +639,73 @@ export default function PatternsPage() {
                   </div>
                 ))}
               </div>
+
+              <div className="card-title mt-4">库存预占情况</div>
+              {preoccupyMap[detailTask.id] && preoccupyMap[detailTask.id].length > 0 ? (
+                <div>
+                  {preoccupyMap[detailTask.id].some(r => r.status === 'pending_purchase') && (
+                    <div style={{
+                      padding: '12px 16px',
+                      background: '#fef2f2',
+                      borderRadius: '10px',
+                      marginBottom: '12px',
+                      color: '#dc2626',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}>
+                      ⚠️ 警告：部分布料库存不足，需要采购后才能裁剪
+                    </div>
+                  )}
+                  <table className="table small">
+                    <thead>
+                      <tr>
+                        <th>布料名称</th>
+                        <th>颜色</th>
+                        <th>预占数量</th>
+                        <th>状态</th>
+                        <th>备注</th>
+                        <th>时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preoccupyMap[detailTask.id].map(record => (
+                        <tr key={record.id}>
+                          <td style={{ fontWeight: 600 }}>{record.fabricName}</td>
+                          <td>{record.color}</td>
+                          <td>{record.preoccupyLength} {record.unit}</td>
+                          <td>
+                            <span
+                              className="badge"
+                              style={{
+                                background: FABRIC_PREOCCUPY_STATUS_COLORS[record.status] + '20',
+                                color: FABRIC_PREOCCUPY_STATUS_COLORS[record.status],
+                                fontWeight: 700,
+                              }}
+                            >
+                              {FABRIC_PREOCCUPY_STATUS_LABELS[record.status]}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '12px', color: '#6b7280' }}>{record.remark || '-'}</td>
+                          <td style={{ fontSize: '12px' }}>{new Date(record.createdAt).toLocaleString('zh-CN')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{
+                  padding: '16px',
+                  background: '#fafafa',
+                  borderRadius: '10px',
+                  textAlign: 'center',
+                  color: '#6b7280',
+                }}>
+                  暂无库存预占记录
+                </div>
+              )}
 
               {detailTask.notes && (
                 <>

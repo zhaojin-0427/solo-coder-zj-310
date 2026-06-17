@@ -395,3 +395,170 @@ export interface ChangeAnalysisData {
   pendingConfirmCount: number;
   totalChanges: number;
 }
+
+export type FabricPreoccupyStatus = 'preoccupied' | 'consumed' | 'released' | 'pending_purchase';
+
+export const FABRIC_PREOCCUPY_STATUS_LABELS: Record<FabricPreoccupyStatus, string> = {
+  preoccupied: '已预占',
+  consumed: '已消耗',
+  released: '已释放',
+  pending_purchase: '待采购',
+};
+
+export const FABRIC_PREOCCUPY_STATUS_COLORS: Record<FabricPreoccupyStatus, string> = {
+  preoccupied: '#f59e0b',
+  consumed: '#10b981',
+  released: '#6b7280',
+  pending_purchase: '#ef4444',
+};
+
+export type FabricAdjustType = 'stock_in' | 'manual_adjust' | 'consume' | 'release_preoccupy' | 'rework_return';
+
+export const FABRIC_ADJUST_TYPE_LABELS: Record<FabricAdjustType, string> = {
+  stock_in: '入库',
+  manual_adjust: '手动调整',
+  consume: '消耗',
+  release_preoccupy: '释放预占',
+  rework_return: '返工退回',
+};
+
+export type PurchaseSuggestionStatus = 'pending' | 'ordered' | 'completed' | 'cancelled';
+
+export const PURCHASE_SUGGESTION_STATUS_LABELS: Record<PurchaseSuggestionStatus, string> = {
+  pending: '待处理',
+  ordered: '已下单',
+  completed: '已入库',
+  cancelled: '已取消',
+};
+
+export const PURCHASE_SUGGESTION_STATUS_COLORS: Record<PurchaseSuggestionStatus, string> = {
+  pending: '#f59e0b',
+  ordered: '#3b82f6',
+  completed: '#10b981',
+  cancelled: '#6b7280',
+};
+
+export interface FabricInventory {
+  id: string;
+  fabricName: string;
+  color: string;
+  width: number;
+  widthUnit: string;
+  stockLength: number;
+  unit: string;
+  safetyStock: number;
+  supplier: string;
+  purchaseCycle: number;
+  purchaseCycleUnit: string;
+  unitPrice: number;
+  currency: string;
+  remark?: string;
+  createdAt: string;
+  updatedAt: string;
+  availableStock?: number;
+  preoccupiedLength?: number;
+  belowSafetyStock?: boolean;
+}
+
+export interface FabricPreoccupyRecord {
+  id: string;
+  fabricInventoryId: string;
+  fabricName: string;
+  color: string;
+  orderId: string;
+  orderNumber?: string;
+  patternTaskId?: string;
+  preoccupyLength: number;
+  unit: string;
+  status: FabricPreoccupyStatus;
+  statusLabel: string;
+  remark?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FabricAdjustRecord {
+  id: string;
+  fabricInventoryId: string;
+  adjustType: FabricAdjustType;
+  adjustTypeLabel: string;
+  adjustLength: number;
+  beforeStock: number;
+  afterStock: number;
+  operator: string;
+  remark?: string;
+  orderId?: string;
+  patternTaskId?: string;
+  createdAt: string;
+}
+
+export interface PurchaseSuggestion {
+  id: string;
+  fabricInventoryId: string;
+  fabricName: string;
+  color: string;
+  currentStock: number;
+  preoccupiedLength: number;
+  safetyStock: number;
+  gapLength: number;
+  suggestedPurchaseLength: number;
+  estimatedCost: number;
+  unit: string;
+  currency: string;
+  latestOrderDate: string;
+  affectedOrders: {
+    orderId: string;
+    orderNumber: string;
+    customerName: string;
+    deliveryDate: string;
+    requiredLength: number;
+  }[];
+  supplier: string;
+  purchaseCycle: number;
+  status: PurchaseSuggestionStatus;
+  statusLabel: string;
+  remark?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FabricInventoryStats {
+  highConsumptionFabrics: {
+    fabricName: string;
+    color: string;
+    totalConsumed: number;
+    unit: string;
+    rank: number;
+  }[];
+  lowStockWarningCount: number;
+  totalPreoccupiedLength: number;
+  totalPreoccupiedUnit: string;
+  estimatedPurchaseCost: number;
+  currency: string;
+  delayedOrdersDueToFabric: number;
+}
+
+export interface Order {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  dollTemplateId: string;
+  items: OrderItem[];
+  deliveryDate: string;
+  priority: 'normal' | 'urgent';
+  status: OrderStatus;
+  styleTags: string[];
+  totalPrice: number;
+  deposit: number;
+  createdAt: string;
+  updatedAt: string;
+  history: OrderStatusHistory[];
+  dollName?: string;
+  stageInfo?: StageInfo;
+  communications?: CommunicationRecord[];
+  changeOrders?: ChangeOrder[];
+  pendingChangeCount?: number;
+  fabricPreoccupyRecords?: FabricPreoccupyRecord[];
+}

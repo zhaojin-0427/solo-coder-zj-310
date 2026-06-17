@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { StatsData, SummaryData, DeliveryRiskData, StageDuration, BusinessStage, ChangeAnalysisData, ChangeType, CHANGE_TYPE_LABELS, CHANGE_TYPE_COLORS } from '../types';
-import { statsApi, orderApi } from '../api';
+import { StatsData, SummaryData, DeliveryRiskData, StageDuration, BusinessStage, ChangeAnalysisData, ChangeType, CHANGE_TYPE_LABELS, CHANGE_TYPE_COLORS, FabricInventoryStats } from '../types';
+import { statsApi, orderApi, fabricInventoryApi } from '../api';
 
 const PIE_COLORS = ['#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#14b8a6', '#22c55e', '#f59e0b', '#f97316'];
 
@@ -165,21 +165,24 @@ export default function StatsPage() {
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [riskData, setRiskData] = useState<DeliveryRiskData | null>(null);
   const [changeAnalysis, setChangeAnalysis] = useState<ChangeAnalysisData | null>(null);
+  const [fabricStats, setFabricStats] = useState<FabricInventoryStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [s1, s2, s3, s4] = await Promise.all([
+      const [s1, s2, s3, s4, s5] = await Promise.all([
         statsApi.getStats(),
         statsApi.getSummary(),
         statsApi.getDeliveryRisk(),
         statsApi.getChangeAnalysis(),
+        fabricInventoryApi.getStats(),
       ]);
       setStats(s1.data);
       setSummary(s2.data);
       setRiskData(s3.data);
       setChangeAnalysis(s4.data);
+      setFabricStats(s5.data);
     } catch (e) {
       console.error(e);
     }
@@ -300,6 +303,48 @@ export default function StatsPage() {
             </div>
           </div>
 
+          <div className="stats-grid">
+            <div className="stat-card" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' }}>
+              <div className="stat-label">库存不足预警</div>
+              <div className="stat-value" style={{ color: '#dc2626' }}>
+                {fabricStats?.lowStockWarningCount || 0}
+                <span style={{ fontSize: '18px', marginLeft: '4px', fontWeight: 500 }}>种</span>
+              </div>
+              <div className="stat-trend" style={{ color: '#dc2626', fontWeight: 600 }}>
+                需及时采购补货
+              </div>
+            </div>
+            <div className="stat-card" style={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)' }}>
+              <div className="stat-label">当前预占总量</div>
+              <div className="stat-value" style={{ color: '#d97706' }}>
+                {fabricStats?.totalPreoccupiedLength.toFixed(2) || 0}
+                <span style={{ fontSize: '18px', marginLeft: '4px', fontWeight: 500 }}>{fabricStats?.totalPreoccupiedUnit || '米'}</span>
+              </div>
+              <div className="stat-trend" style={{ color: '#92400e', fontWeight: 600 }}>
+                已被订单预占的布料
+              </div>
+            </div>
+            <div className="stat-card" style={{ background: 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)' }}>
+              <div className="stat-label">预计采购成本</div>
+              <div className="stat-value" style={{ fontSize: '24px', color: '#1d4ed8' }}>
+                ¥{fabricStats?.estimatedPurchaseCost.toLocaleString() || 0}
+              </div>
+              <div className="stat-trend" style={{ color: '#1e40af', fontWeight: 600 }}>
+                基于库存缺口估算
+              </div>
+            </div>
+            <div className="stat-card" style={{ background: 'linear-gradient(135deg, #fef2f2 0%, #fecaca 100%)' }}>
+              <div className="stat-label">缺料可能延期订单</div>
+              <div className="stat-value" style={{ color: '#dc2626' }}>
+                {fabricStats?.delayedOrdersDueToFabric || 0}
+                <span style={{ fontSize: '18px', marginLeft: '4px', fontWeight: 500 }}>单</span>
+              </div>
+              <div className="stat-trend" style={{ color: '#b91c1c', fontWeight: 600 }}>
+                需优先采购的订单
+              </div>
+            </div>
+          </div>
+
           <div className="card">
             <h3 className="card-title">📊 各类变更占比</h3>
             {changeAnalysis && changeAnalysis.changeTypeDistribution.length > 0 ? (
@@ -385,39 +430,61 @@ export default function StatsPage() {
           </div>
 
           <div className="card">
-            <h3 className="card-title">🧵 布料消耗排行</h3>
-            {stats && stats.fabricConsumption.length > 0 ? (
+            <h3 className="card-title">🏆 高消耗布料排行</h3>
+            {fabricStats && fabricStats.highConsumptionFabrics.length > 0 ? (
               <div className="bar-chart">
-                {stats.fabricConsumption.slice(0, 10).map((item, idx) => (
-                  <div key={idx} className="bar-chart-item">
-                    <div className="bar-chart-label" style={{ minWidth: '160px' }}>
-                      <div>{item.fabricName}</div>
-                      <div className="text-muted" style={{ fontSize: '11px', fontWeight: 400 }}>
-                        {item.color}
+                {fabricStats.highConsumptionFabrics.map((item, idx) => {
+                  const maxUsed = Math.max(...fabricStats.highConsumptionFabrics.map(f => f.totalConsumed), 1);
+                  return (
+                    <div key={idx} className="bar-chart-item">
+                      <div className="bar-chart-label" style={{ minWidth: '180px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            background: idx === 0 ? '#fbbf24' : idx === 1 ? '#9ca3af' : idx === 2 ? '#d97706' : '#e5e7eb',
+                            color: idx < 3 ? '#fff' : '#6b7280',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                            {item.rank}
+                          </span>
+                          <span>{item.fabricName}</span>
+                        </div>
+                        <div className="text-muted" style={{ fontSize: '11px', fontWeight: 400, marginLeft: '32px' }}>
+                          {item.color}
+                        </div>
+                      </div>
+                      <div className="bar-chart-track">
+                        <div
+                          className={
+                            'bar-chart-fill ' +
+                            (idx === 0 ? '' : idx === 1 ? 'blue' : idx === 2 ? 'green' : 'orange')
+                          }
+                          style={{
+                            width: `${Math.max((item.totalConsumed / maxUsed) * 100, 5)}%`,
+                          }}
+                        >
+                          {item.totalConsumed} {item.unit}
+                        </div>
+                      </div>
+                      <div className="bar-chart-value">
+                        {item.totalConsumed} {item.unit}
                       </div>
                     </div>
-                    <div className="bar-chart-track">
-                      <div
-                        className={
-                          'bar-chart-fill ' +
-                          (idx === 0 ? '' : idx === 1 ? 'blue' : idx === 2 ? 'green' : 'orange')
-                        }
-                        style={{
-                          width: `${Math.max((item.totalUsed / maxFabric) * 100, 5)}%`,
-                        }}
-                      >
-                        {item.totalUsed} {item.unit}
-                      </div>
-                    </div>
-                    <div className="bar-chart-value">
-                      {item.totalUsed} {item.unit}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="empty-state">暂无数据</div>
             )}
+            <div className="mt-4 text-muted" style={{ fontSize: '12px' }}>
+              💡 <strong>说明：</strong>高消耗布料建议增加安全库存，避免频繁采购导致的交期延误
+            </div>
           </div>
 
           <div className="card">

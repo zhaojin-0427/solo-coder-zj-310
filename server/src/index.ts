@@ -7,6 +7,7 @@ import fittingRoutes from './routes/fittings';
 import statsRoutes from './routes/stats';
 import communicationRoutes from './routes/communications';
 import changeOrderRoutes from './routes/changeOrders';
+import fabricInventoryRoutes from './routes/fabricInventory';
 
 const app = express();
 const PORT = 9722;
@@ -25,6 +26,7 @@ app.use('/api/fittings', fittingRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/communications', communicationRoutes);
 app.use('/api/change-orders', changeOrderRoutes);
+app.use('/api/fabric-inventory', fabricInventoryRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 BJD娃衣定制系统后端服务已启动: http://localhost:${PORT}`);

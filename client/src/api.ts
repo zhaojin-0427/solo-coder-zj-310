@@ -11,6 +11,11 @@ import {
   CommunicationRecord,
   ChangeOrder,
   ChangeAnalysisData,
+  FabricInventory,
+  FabricPreoccupyRecord,
+  FabricAdjustRecord,
+  PurchaseSuggestion,
+  FabricInventoryStats,
 } from './types';
 
 const api = axios.create({
@@ -122,4 +127,39 @@ export const changeOrderApi = {
     api.patch<ApiResponse<ChangeOrder>>(`/change-orders/${id}/reject`, data).then(r => r.data),
   remove: (id: string) =>
     api.delete<ApiResponse<void>>(`/change-orders/${id}`).then(r => r.data),
+};
+
+export const fabricInventoryApi = {
+  getAll: (params?: { fabricName?: string; color?: string; supplier?: string; belowSafetyStock?: boolean }) =>
+    api.get<ApiResponse<FabricInventory[]>>('/fabric-inventory', { params }).then(r => r.data),
+  getById: (id: string) =>
+    api.get<ApiResponse<FabricInventory>>(`/fabric-inventory/${id}`).then(r => r.data),
+  getStats: () =>
+    api.get<ApiResponse<FabricInventoryStats>>('/fabric-inventory/stats').then(r => r.data),
+  getPurchaseSuggestions: (params?: { status?: string }) =>
+    api.get<ApiResponse<PurchaseSuggestion[]>>('/fabric-inventory/purchase-suggestions', { params }).then(r => r.data),
+  create: (data: Partial<FabricInventory>) =>
+    api.post<ApiResponse<FabricInventory>>('/fabric-inventory', data).then(r => r.data),
+  update: (id: string, data: Partial<FabricInventory>) =>
+    api.put<ApiResponse<FabricInventory>>(`/fabric-inventory/${id}`, data).then(r => r.data),
+  remove: (id: string) =>
+    api.delete<ApiResponse<void>>(`/fabric-inventory/${id}`).then(r => r.data),
+  stockIn: (id: string, data: { stockInLength: number; operator: string; remark?: string }) =>
+    api.post<ApiResponse<FabricInventory>>(`/fabric-inventory/${id}/stock-in`, data).then(r => r.data),
+  manualAdjust: (id: string, data: { adjustLength: number; operator: string; remark?: string }) =>
+    api.post<ApiResponse<FabricInventory>>(`/fabric-inventory/${id}/manual-adjust`, data).then(r => r.data),
+  preoccupy: (data: { fabricInventoryId: string; orderId: string; patternTaskId?: string; preoccupyLength: number; operator: string; remark?: string }) =>
+    api.post<ApiResponse<FabricPreoccupyRecord>>('/fabric-inventory/preoccupy', data).then(r => r.data),
+  releasePreoccupy: (id: string, data: { preoccupyRecordId: string; operator: string; remark?: string }) =>
+    api.post<ApiResponse<FabricInventory>>(`/fabric-inventory/${id}/release-preoccupy`, data).then(r => r.data),
+  releaseByOrder: (orderId: string, data: { operator: string; remark?: string }) =>
+    api.post<ApiResponse<{ releasedCount: number; releasedLength: number }>>(`/fabric-inventory/release-by-order/${orderId}`, data).then(r => r.data),
+  consumeByPattern: (patternTaskId: string, data: { operator: string; remark?: string }) =>
+    api.post<ApiResponse<{ consumedCount: number; consumedLength: number }>>(`/fabric-inventory/consume-by-pattern/${patternTaskId}`, data).then(r => r.data),
+  getByPattern: (patternTaskId: string) =>
+    api.get<ApiResponse<FabricPreoccupyRecord[]>>(`/fabric-inventory/by-pattern/${patternTaskId}`).then(r => r.data),
+  getByOrder: (orderId: string) =>
+    api.get<ApiResponse<FabricPreoccupyRecord[]>>(`/fabric-inventory/by-order/${orderId}`).then(r => r.data),
+  getAdjustRecords: (fabricInventoryId: string) =>
+    api.get<ApiResponse<FabricAdjustRecord[]>>(`/fabric-inventory/${fabricInventoryId}/adjust-records`).then(r => r.data),
 };

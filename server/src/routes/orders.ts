@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { store } from '../store';
-import { Order, OrderStatus, OrderStatusHistory, StageInfo } from '../types';
+import { Order, OrderStatus, OrderStatusHistory, StageInfo, FABRIC_PREOCCUPY_STATUS_LABELS } from '../types';
 import {
   validateOrderTransitionWithBusinessCheck,
   addOrderHistory,
@@ -78,6 +78,12 @@ router.get('/:id', (req: Request, res: Response) => {
       statusLabel: CHANGE_ORDER_STATUS_LABELS_CN[c.status] || c.status,
     }));
   const pendingChangeCount = changeOrders.filter(c => c.status === 'pending').length;
+  const fabricPreoccupyRecords = store.fabricPreoccupyRecords
+    .filter(r => r.orderId === order.id)
+    .map(r => ({
+      ...r,
+      statusLabel: FABRIC_PREOCCUPY_STATUS_LABELS[r.status] || r.status,
+    }));
   res.json({
     success: true,
     data: {
@@ -91,6 +97,7 @@ router.get('/:id', (req: Request, res: Response) => {
       communications,
       changeOrders,
       pendingChangeCount,
+      fabricPreoccupyRecords,
     },
   });
 });
@@ -151,6 +158,7 @@ router.patch('/:id/status', (req: Request, res: Response) => {
   if (idx === -1) {
     return res.status(404).json({ success: false, message: '订单不存在' });
   }
+  const currentStatus = store.orders[idx].status;
   const { status, note, operator } = req.body;
   if (!status) {
     return res.status(400).json({ success: false, message: '请指定目标状态' });
@@ -162,6 +170,17 @@ router.patch('/:id/status', (req: Request, res: Response) => {
   );
   if (!validation.success) {
     return res.status(400).json({ success: false, message: validation.message });
+  }
+
+  const orderId = store.orders[idx].id;
+  let fabricActionResult: any = null;
+  
+  if (status === 'cancelled') {
+    fabricActionResult = releaseFabricByOrder(orderId, operator || '系统操作', '订单取消，释放所有布料预占');
+  }
+  
+  if (status === 'completed') {
+    fabricActionResult = consumeRemainingFabricByOrder(orderId, operator || '系统操作', '订单完成，确认剩余布料消耗');
   }
 
   const historyItem: OrderStatusHistory = addOrderHistory(
@@ -177,15 +196,110 @@ router.patch('/:id/status', (req: Request, res: Response) => {
   const stageInfo = getStageInfo(store.orders[idx].id);
   const stageTimeline = getStageTimeline(store.orders[idx].id);
   const keyMilestones = getKeyMilestones(store.orders[idx].id);
+  
+  let message = '状态更新成功';
+  if (fabricActionResult && fabricActionResult.message) {
+    message = fabricActionResult.message;
+  }
+  
   res.json({
     success: true,
+    message,
     data: {
       ...store.orders[idx],
       stageInfo,
       stageTimeline,
       keyMilestones,
+      fabricAction: fabricActionResult,
     },
   });
 });
+
+function releaseFabricByOrder(orderId: string, operator: string, remark: string) {
+  const order = store.orders.find(o => o.id === orderId);
+  if (!order) {
+    return { success: false, message: '订单不存在' };
+  }
+
+  const released: any[] = [];
+  store.fabricPreoccupyRecords.forEach((record, idx) => {
+    if (record.orderId === orderId && (record.status === 'preoccupied' || record.status === 'pending_purchase')) {
+      store.fabricPreoccupyRecords[idx].status = 'released';
+      store.fabricPreoccupyRecords[idx].updatedAt = new Date().toISOString();
+      store.fabricPreoccupyRecords[idx].remark = remark || record.remark;
+      released.push(store.fabricPreoccupyRecords[idx]);
+
+      const fabric = store.fabricInventories.find(f => f.id === record.fabricInventoryId);
+      if (fabric) {
+        store.addFabricAdjustRecord(
+          fabric.id,
+          'release_preoccupy',
+          record.preoccupyLength,
+          fabric.stockLength,
+          fabric.stockLength,
+          operator,
+          remark || '订单取消释放预占',
+          record.orderId,
+          record.patternTaskId
+        );
+      }
+    }
+  });
+
+  store.generatePurchaseSuggestions();
+
+  return {
+    success: true,
+    message: `订单已取消，已释放 ${released.length} 种布料的预占，共 ${released.reduce((sum, r) => sum + r.preoccupyLength, 0).toFixed(2)} 米`,
+    releasedCount: released.length,
+    records: released,
+  };
+}
+
+function consumeRemainingFabricByOrder(orderId: string, operator: string, remark: string) {
+  const order = store.orders.find(o => o.id === orderId);
+  if (!order) {
+    return { success: false, message: '订单不存在' };
+  }
+
+  const consumed: any[] = [];
+  store.fabricPreoccupyRecords.forEach((record, idx) => {
+    if (record.orderId === orderId && (record.status === 'preoccupied' || record.status === 'pending_purchase')) {
+      store.fabricPreoccupyRecords[idx].status = 'consumed';
+      store.fabricPreoccupyRecords[idx].updatedAt = new Date().toISOString();
+      store.fabricPreoccupyRecords[idx].remark = remark || record.remark;
+      consumed.push(store.fabricPreoccupyRecords[idx]);
+
+      const fabricIdx = store.fabricInventories.findIndex(f => f.id === record.fabricInventoryId);
+      if (fabricIdx !== -1) {
+        const beforeStock = store.fabricInventories[fabricIdx].stockLength;
+        const afterStock = Number((beforeStock - record.preoccupyLength).toFixed(2));
+        store.fabricInventories[fabricIdx].stockLength = Math.max(0, afterStock);
+        store.fabricInventories[fabricIdx].updatedAt = new Date().toISOString();
+
+        store.addFabricAdjustRecord(
+          store.fabricInventories[fabricIdx].id,
+          'consume',
+          -record.preoccupyLength,
+          beforeStock,
+          store.fabricInventories[fabricIdx].stockLength,
+          operator,
+          remark || '订单完成消耗',
+          record.orderId,
+          record.patternTaskId
+        );
+      }
+    }
+  });
+
+  store.generatePurchaseSuggestions();
+
+  return {
+    success: true,
+    message: `订单已完成，已消耗 ${consumed.length} 种布料，共 ${consumed.reduce((sum, r) => sum + r.preoccupyLength, 0).toFixed(2)} 米`,
+    consumedCount: consumed.length,
+    records: consumed,
+  };
+}
 
 export default router;

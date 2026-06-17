@@ -218,3 +218,123 @@ export interface ChangeAnalysisData {
   pendingConfirmCount: number;
   totalChanges: number;
 }
+
+export type FabricPreoccupyStatus = 'preoccupied' | 'consumed' | 'released' | 'pending_purchase';
+
+export const FABRIC_PREOCCUPY_STATUS_LABELS: Record<FabricPreoccupyStatus, string> = {
+  preoccupied: '已预占',
+  consumed: '已消耗',
+  released: '已释放',
+  pending_purchase: '待采购',
+};
+
+export const FABRIC_PREOCCUPY_STATUS_COLORS: Record<FabricPreoccupyStatus, string> = {
+  preoccupied: '#f59e0b',
+  consumed: '#22c55e',
+  released: '#94a3b8',
+  pending_purchase: '#ef4444',
+};
+
+export interface FabricInventory {
+  id: string;
+  fabricName: string;
+  color: string;
+  width: number;
+  stockLength: number;
+  safetyStock: number;
+  supplier: string;
+  purchaseCycle: number;
+  unitPrice: number;
+  unit: 'meter' | 'yard';
+  remark?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FabricPreoccupyRecord {
+  id: string;
+  fabricInventoryId: string;
+  fabricName: string;
+  color: string;
+  orderId: string;
+  orderNumber?: string;
+  patternTaskId: string;
+  preoccupyLength: number;
+  unit: 'meter' | 'yard';
+  status: FabricPreoccupyStatus;
+  remark?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FabricAdjustType = 'stock_in' | 'manual_adjust' | 'release_preoccupy' | 'consume';
+
+export const FABRIC_ADJUST_TYPE_LABELS: Record<FabricAdjustType, string> = {
+  stock_in: '入库',
+  manual_adjust: '手动调整',
+  release_preoccupy: '释放预占',
+  consume: '消耗',
+};
+
+export interface FabricAdjustRecord {
+  id: string;
+  fabricInventoryId: string;
+  fabricName: string;
+  color: string;
+  adjustType: FabricAdjustType;
+  changeLength: number;
+  beforeStock: number;
+  afterStock: number;
+  unit: 'meter' | 'yard';
+  operator: string;
+  remark?: string;
+  relatedOrderId?: string;
+  relatedPatternTaskId?: string;
+  createdAt: string;
+}
+
+export interface PurchaseSuggestion {
+  id: string;
+  fabricInventoryId: string;
+  fabricName: string;
+  color: string;
+  width: number;
+  currentStock: number;
+  safetyStock: number;
+  preoccupiedLength: number;
+  gapLength: number;
+  suggestedPurchaseLength: number;
+  unit: 'meter' | 'yard';
+  estimatedCost: number;
+  unitPrice: number;
+  supplier: string;
+  purchaseCycle: number;
+  latestOrderDate: string;
+  affectedOrders: { orderId: string; orderNumber: string; deliveryDate: string; customerName: string; requiredLength: number }[];
+  status: 'pending' | 'ordered' | 'completed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const PURCHASE_SUGGESTION_STATUS_LABELS: Record<string, string> = {
+  pending: '待采购',
+  ordered: '已下单',
+  completed: '已到货',
+};
+
+export const PURCHASE_SUGGESTION_STATUS_COLORS: Record<string, string> = {
+  pending: '#ef4444',
+  ordered: '#f59e0b',
+  completed: '#22c55e',
+};
+
+export interface FabricInventoryStats {
+  totalFabricTypes: number;
+  lowStockCount: number;
+  totalPreoccupiedLength: number;
+  totalEstimatedPurchaseCost: number;
+  delayedOrdersDueToShortage: number;
+  topConsumedFabrics: { fabricName: string; color: string; totalUsed: number; unit: string }[];
+  inventoryValue: number;
+  turnoverRate: number;
+}

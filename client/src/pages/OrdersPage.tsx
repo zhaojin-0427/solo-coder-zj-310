@@ -24,6 +24,9 @@ import {
   CHANGE_TYPE_COLORS,
   CHANGE_ORDER_STATUS_LABELS,
   CHANGE_ORDER_STATUS_COLORS,
+  FabricPreoccupyRecord,
+  FABRIC_PREOCCUPY_STATUS_LABELS,
+  FABRIC_PREOCCUPY_STATUS_COLORS,
 } from '../types';
 import { orderApi, dollApi, communicationApi, changeOrderApi } from '../api';
 
@@ -57,6 +60,7 @@ export default function OrdersPage() {
   const [detailCommunications, setDetailCommunications] = useState<CommunicationRecord[]>([]);
   const [detailChangeOrders, setDetailChangeOrders] = useState<ChangeOrder[]>([]);
   const [detailPendingChangeCount, setDetailPendingChangeCount] = useState<number>(0);
+  const [detailFabricRecords, setDetailFabricRecords] = useState<FabricPreoccupyRecord[]>([]);
   const [showCommunicationModal, setShowCommunicationModal] = useState<boolean>(false);
   const [showChangeOrderModal, setShowChangeOrderModal] = useState<boolean>(false);
   const [communicationFormData, setCommunicationFormData] = useState<any>({
@@ -383,6 +387,7 @@ export default function OrdersPage() {
       setDetailCommunications(data.communications || []);
       setDetailChangeOrders(data.changeOrders || []);
       setDetailPendingChangeCount(data.pendingChangeCount || 0);
+      setDetailFabricRecords(data.fabricPreoccupyRecords || []);
     } catch (e) {
       console.error(e);
       setDetailOrder(order);
@@ -394,6 +399,7 @@ export default function OrdersPage() {
       setDetailCommunications([]);
       setDetailChangeOrders([]);
       setDetailPendingChangeCount(0);
+      setDetailFabricRecords([]);
     }
   };
 
@@ -1031,6 +1037,95 @@ export default function OrdersPage() {
                   )}
                 </div>
               ))}
+
+              <div className="card-title mt-4">🧵 布料占用清单</div>
+              {detailFabricRecords.length > 0 ? (
+                <div>
+                  {detailFabricRecords.some(r => r.status === 'pending_purchase') && (
+                    <div style={{
+                      padding: '12px 16px',
+                      background: '#fef2f2',
+                      borderRadius: '10px',
+                      marginBottom: '12px',
+                      color: '#dc2626',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}>
+                      ⚠️ 警告：部分布料库存不足，可能影响交付时间
+                    </div>
+                  )}
+                  <div className="table-container">
+                    <table className="table small">
+                      <thead>
+                        <tr>
+                          <th>布料名称</th>
+                          <th>颜色</th>
+                          <th>占用数量</th>
+                          <th>状态</th>
+                          <th>关联打版</th>
+                          <th>备注</th>
+                          <th>时间</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detailFabricRecords.map(record => (
+                          <tr key={record.id}>
+                            <td style={{ fontWeight: 600 }}>{record.fabricName}</td>
+                            <td>{record.color}</td>
+                            <td>{record.preoccupyLength} {record.unit}</td>
+                            <td>
+                              <span
+                                className="badge"
+                                style={{
+                                  background: FABRIC_PREOCCUPY_STATUS_COLORS[record.status] + '20',
+                                  color: FABRIC_PREOCCUPY_STATUS_COLORS[record.status],
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {FABRIC_PREOCCUPY_STATUS_LABELS[record.status]}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '12px' }}>{record.patternTaskId ? record.patternTaskId.slice(0, 12) : '-'}</td>
+                            <td style={{ fontSize: '12px', color: '#6b7280' }}>{record.remark || '-'}</td>
+                            <td style={{ fontSize: '12px' }}>{new Date(record.createdAt).toLocaleString('zh-CN')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{
+                    marginTop: '10px',
+                    padding: '10px 14px',
+                    background: '#f1f5f9',
+                    borderRadius: '8px',
+                    fontSize: '12.5px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}>
+                    <span style={{ color: '#64748b' }}>
+                      共占用 {detailFabricRecords.length} 种布料
+                    </span>
+                    <span style={{ fontWeight: 600, color: '#334155' }}>
+                      合计：{detailFabricRecords.reduce((sum, r) => sum + r.preoccupyLength, 0).toFixed(2)} {detailFabricRecords[0]?.unit || '米'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  padding: '20px',
+                  background: '#fafafa',
+                  borderRadius: '10px',
+                  textAlign: 'center',
+                  color: '#6b7280',
+                  fontSize: '13px',
+                }}>
+                  该订单暂无布料预占记录
+                </div>
+              )}
 
               {(detailPatterns.length > 0 || detailFittings.length > 0) && (
                 <div className="card-title mt-4">关联任务概览</div>
