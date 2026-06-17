@@ -128,8 +128,9 @@ const CHANGE_TYPE_LABELS_CN: Record<string, string> = {
 
 router.get('/change-analysis', (req: Request, res: Response) => {
   const confirmedChanges = store.changeOrders.filter(c => c.status === 'confirmed');
+  const nonRejectedChanges = store.changeOrders.filter(c => c.status !== 'rejected');
   const allChanges = store.changeOrders;
-  const totalChanges = confirmedChanges.length;
+  const totalChanges = nonRejectedChanges.length;
 
   const typeCountMap = new Map<string, number>();
   let totalSupplement = 0;
@@ -137,15 +138,18 @@ router.get('/change-analysis', (req: Request, res: Response) => {
   const dollChangeCountMap = new Map<string, number>();
   const pendingCount = allChanges.filter(c => c.status === 'pending').length;
 
-  confirmedChanges.forEach(change => {
+  nonRejectedChanges.forEach(change => {
     typeCountMap.set(change.changeType, (typeCountMap.get(change.changeType) || 0) + 1);
-    totalSupplement += change.supplementAmount;
-    totalDelay += change.estimatedDelayDays;
 
     const order = store.orders.find(o => o.id === change.orderId);
     if (order) {
       dollChangeCountMap.set(order.dollTemplateId, (dollChangeCountMap.get(order.dollTemplateId) || 0) + 1);
     }
+  });
+
+  confirmedChanges.forEach(change => {
+    totalSupplement += change.supplementAmount;
+    totalDelay += change.estimatedDelayDays;
   });
 
   const changeTypeDistribution = Array.from(typeCountMap.entries())
@@ -169,8 +173,9 @@ router.get('/change-analysis', (req: Request, res: Response) => {
     }
   });
 
-  const avgSupplementAmount = totalChanges > 0 ? Number((totalSupplement / totalChanges).toFixed(2)) : 0;
-  const avgDelayDays = totalChanges > 0 ? Number((totalDelay / totalChanges).toFixed(1)) : 0;
+  const confirmedCount = confirmedChanges.length;
+  const avgSupplementAmount = confirmedCount > 0 ? Number((totalSupplement / confirmedCount).toFixed(2)) : 0;
+  const avgDelayDays = confirmedCount > 0 ? Number((totalDelay / confirmedCount).toFixed(1)) : 0;
 
   const topDollModel = Array.from(dollChangeCountMap.entries())
     .map(([dollId, changeCount]) => ({

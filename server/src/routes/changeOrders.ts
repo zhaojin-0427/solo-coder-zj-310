@@ -143,6 +143,7 @@ function validateChangeRequest(order: Order, changeType: ChangeType, supplementA
 
 function applyChangeToOrder(order: Order, changeOrder: ChangeOrder): Order {
   const updatedOrder = { ...order };
+  updatedOrder.items = updatedOrder.items.map(item => ({ ...item }));
 
   updatedOrder.totalPrice = changeOrder.priceAfter;
 
@@ -164,10 +165,19 @@ function applyChangeToOrder(order: Order, changeOrder: ChangeOrder): Order {
     }));
   }
 
+  if (changeOrder.changeType === 'style') {
+    if (updatedOrder.items.length > 0) {
+      const existingNotes = updatedOrder.items[0].notes || '';
+      const styleNote = `【风格调整】${changeOrder.description}`;
+      updatedOrder.items[0].notes = existingNotes ? `${existingNotes}\n${styleNote}` : styleNote;
+      updatedOrder.items[0].styleReference = changeOrder.afterValue || updatedOrder.items[0].styleReference;
+    }
+  }
+
   if (changeOrder.changeType === 'quantity') {
     const newQty = parseInt(changeOrder.afterValue) || 1;
     if (updatedOrder.items.length > 0) {
-      updatedOrder.items[0] = { ...updatedOrder.items[0], quantity: newQty };
+      updatedOrder.items[0].quantity = newQty;
     }
   }
 
