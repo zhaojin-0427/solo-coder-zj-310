@@ -16,6 +16,14 @@ import {
   FabricAdjustRecord,
   PurchaseSuggestion,
   FabricInventoryStats,
+  ScheduleTask,
+  ScheduleData,
+  ScheduleCardData,
+  ScheduleSummary,
+  DesignerWorkload,
+  CapacityData,
+  ScheduleConflict,
+  Designer,
 } from './types';
 
 const api = axios.create({
@@ -162,4 +170,48 @@ export const fabricInventoryApi = {
     api.get<ApiResponse<FabricPreoccupyRecord[]>>(`/fabric-inventory/by-order/${orderId}`).then(r => r.data),
   getAdjustRecords: (fabricInventoryId: string) =>
     api.get<ApiResponse<FabricAdjustRecord[]>>(`/fabric-inventory/${fabricInventoryId}/adjust-records`).then(r => r.data),
+};
+
+export const scheduleApi = {
+  getSchedule: (params?: { designer?: string; stage?: string; viewType?: string }) =>
+    api.get<ApiResponse<ScheduleData>>('/schedule', { params }).then(r => r.data),
+  getGantt: (params?: { startDate?: string; endDate?: string; designer?: string }) =>
+    api.get<ApiResponse<{
+      tasks: ScheduleTask[];
+      groupedByOrder: Record<string, ScheduleTask[]>;
+      designers: Designer[];
+      stageLabels: Record<string, string>;
+      stageColors: Record<string, string>;
+    }>>('/schedule/gantt', { params }).then(r => r.data),
+  getCapacity: (days?: number) =>
+    api.get<ApiResponse<{
+      capacity: CapacityData[];
+      designerWorkloads: DesignerWorkload[];
+    }>>('/schedule/capacity', { params: { days: days?.toString() } }).then(r => r.data),
+  getWorkload: () =>
+    api.get<ApiResponse<{
+      designerWorkloads: DesignerWorkload[];
+      designers: Designer[];
+    }>>('/schedule/workload').then(r => r.data),
+  getConflicts: () =>
+    api.get<ApiResponse<{
+      conflicts: ScheduleConflict[];
+      atRiskOrdersCount: number;
+    }>>('/schedule/conflicts').then(r => r.data),
+  getOrderSchedule: (orderId: string) =>
+    api.get<ApiResponse<ScheduleCardData>>(`/schedule/order/${orderId}`).then(r => r.data),
+  updateTask: (taskId: string, updates: Partial<ScheduleTask>) =>
+    api.patch<ApiResponse<{
+      task: ScheduleTask;
+      scheduleData: ScheduleData;
+    }>>(`/schedule/task/${taskId}`, updates).then(r => r.data),
+  toggleTaskLock: (taskId: string) =>
+    api.post<ApiResponse<{
+      task: ScheduleTask;
+      scheduleData: ScheduleData;
+    }>>(`/schedule/task/${taskId}/lock`).then(r => r.data),
+  recalculate: () =>
+    api.post<ApiResponse<ScheduleData>>('/schedule/recalculate').then(r => r.data),
+  getSummary: () =>
+    api.get<ApiResponse<ScheduleSummary>>('/schedule/summary').then(r => r.data),
 };

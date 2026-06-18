@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { StatsData, SummaryData, DeliveryRiskData, StageDuration, BusinessStage, ChangeAnalysisData, ChangeType, CHANGE_TYPE_LABELS, CHANGE_TYPE_COLORS, FabricInventoryStats } from '../types';
-import { statsApi, orderApi, fabricInventoryApi } from '../api';
+import { StatsData, SummaryData, DeliveryRiskData, StageDuration, BusinessStage, ChangeAnalysisData, ChangeType, CHANGE_TYPE_LABELS, CHANGE_TYPE_COLORS, FabricInventoryStats, ScheduleData, DesignerWorkload, CapacityData, DELAY_RISK_LABELS, DELAY_RISK_COLORS } from '../types';
+import { statsApi, orderApi, fabricInventoryApi, scheduleApi } from '../api';
 
 const PIE_COLORS = ['#ec4899', '#8b5cf6', '#3b82f6', '#06b6d4', '#14b8a6', '#22c55e', '#f59e0b', '#f97316'];
 
@@ -166,23 +166,29 @@ export default function StatsPage() {
   const [riskData, setRiskData] = useState<DeliveryRiskData | null>(null);
   const [changeAnalysis, setChangeAnalysis] = useState<ChangeAnalysisData | null>(null);
   const [fabricStats, setFabricStats] = useState<FabricInventoryStats | null>(null);
+  const [scheduleData, setScheduleData] = useState<ScheduleData | null>(null);
+  const [capacityData, setCapacityData] = useState<{ capacity: CapacityData[]; designerWorkloads: DesignerWorkload[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [s1, s2, s3, s4, s5] = await Promise.all([
+      const [s1, s2, s3, s4, s5, s6, s7] = await Promise.all([
         statsApi.getStats(),
         statsApi.getSummary(),
         statsApi.getDeliveryRisk(),
         statsApi.getChangeAnalysis(),
         fabricInventoryApi.getStats(),
+        scheduleApi.getSchedule(),
+        scheduleApi.getCapacity(7),
       ]);
       setStats(s1.data);
       setSummary(s2.data);
       setRiskData(s3.data);
       setChangeAnalysis(s4.data);
       setFabricStats(s5.data);
+      setScheduleData(s6.data);
+      setCapacityData(s7.data);
     } catch (e) {
       console.error(e);
     }
@@ -815,6 +821,213 @@ export default function StatsPage() {
               💡 <strong>说明：</strong>统计各业务阶段的平均停留时长，可识别瓶颈环节并针对性优化
             </div>
           </div>
+
+          {scheduleData && (
+            <div className="stats-grid">
+              <div className="stat-card" style={{ background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' }}>
+                <div className="stat-label">延期风险订单</div>
+                <div className="stat-value" style={{ color: '#dc2626' }}>
+                  {scheduleData.atRiskOrdersCount}
+                  <span style={{ fontSize: '18px', marginLeft: '4px', fontWeight: 500 }}>单</span>
+                </div>
+                <div className="stat-trend" style={{ color: '#b91c1c', fontWeight: 600 }}>
+                  需重点关注跟进
+                </div>
+              </div>
+              <div className="stat-card" style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' }}>
+                <div className="stat-label">加急订单</div>
+                <div className="stat-value" style={{ color: '#ea580c' }}>
+                  {scheduleData.urgentOrdersCount}
+                  <span style={{ fontSize: '18px', marginLeft: '4px', fontWeight: 500 }}>单</span>
+                </div>
+                <div className="stat-trend" style={{ color: '#c2410c', fontWeight: 600 }}>
+                  优先处理保障交期
+                </div>
+              </div>
+              <div className="stat-card" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' }}>
+                <div className="stat-label">排期冲突</div>
+                <div className="stat-value" style={{ color: scheduleData.conflicts.length > 0 ? '#dc2626' : '#059669' }}>
+                  {scheduleData.conflicts.length}
+                  <span style={{ fontSize: '18px', marginLeft: '4px', fontWeight: 500 }}>个</span>
+                </div>
+                <div className="stat-trend" style={{ color: scheduleData.conflicts.length > 0 ? '#b91c1c' : '#047857', fontWeight: 600 }}>
+                  {scheduleData.conflicts.length > 0 ? '需及时调整排期' : '排期健康状态良好'}
+                </div>
+              </div>
+              <div className="stat-card" style={{ background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)' }}>
+                <div className="stat-label">平均排期周期</div>
+                <div className="stat-value" style={{ color: '#1d4ed8' }}>
+                  {scheduleData.avgCycleDays.toFixed(1)}
+                  <span style={{ fontSize: '18px', marginLeft: '4px', fontWeight: 500 }}>天</span>
+                </div>
+                <div className="stat-trend" style={{ color: '#1e40af', fontWeight: 600 }}>
+                  从打版到发货
+                </div>
+              </div>
+            </div>
+          )}
+
+          {capacityData && (
+            <div className="card">
+              <h3 className="card-title">📊 未来7天产能饱和度</h3>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))',
+                gap: '12px',
+                marginBottom: '16px',
+              }}>
+                {capacityData.capacity.slice(0, 7).map((cap, idx) => {
+                  const getColor = (sat: number) => {
+                    if (sat >= 100) return '#ef4444';
+                    if (sat >= 80) return '#f59e0b';
+                    return '#22c55e';
+                  };
+                  const date = new Date(cap.date);
+                  const isToday = date.toDateString() === new Date().toDateString();
+                  return (
+                    <div
+                      key={cap.date}
+                      style={{
+                        padding: '12px',
+                        background: isToday ? '#eff6ff' : '#f9fafb',
+                        borderRadius: '10px',
+                        border: isToday ? '2px solid #3b82f6' : '1px solid #e5e7eb',
+                        textAlign: 'center',
+                      }}
+                    >
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: isToday ? '#3b82f6' : '#374151', marginBottom: '4px' }}>
+                        {isToday ? '今天' : `${date.getMonth() + 1}/${date.getDate()}`}
+                      </div>
+                      {cap.isHoliday && (
+                        <div style={{ fontSize: '10px', color: '#ef4444', marginBottom: '4px' }}>
+                          {cap.holidayName || '节假日'}
+                        </div>
+                      )}
+                      {!cap.isHoliday && cap.isWeekend && (
+                        <div style={{ fontSize: '10px', color: '#f59e0b', marginBottom: '4px' }}>
+                          周末
+                        </div>
+                      )}
+                      <div style={{
+                        height: '8px',
+                        background: '#e5e7eb',
+                        borderRadius: '4px',
+                        overflow: 'hidden',
+                        marginBottom: '4px',
+                      }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${Math.min(cap.saturation, 100)}%`,
+                            background: getColor(cap.saturation),
+                            borderRadius: '4px',
+                          }}
+                        />
+                      </div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, color: getColor(cap.saturation) }}>
+                        {cap.saturation.toFixed(0)}%
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#6b7280' }}>
+                        {cap.totalScheduledHours}/{cap.totalAvailableHours}h
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {capacityData && capacityData.designerWorkloads.length > 0 && (
+            <div className="card">
+              <h3 className="card-title">👤 设计师负载排行</h3>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+              }}>
+                {capacityData.designerWorkloads
+                  .sort((a, b) => b.saturation - a.saturation)
+                  .map((workload, idx) => {
+                    const getColor = (sat: number) => {
+                      if (sat >= 100) return '#ef4444';
+                      if (sat >= 80) return '#f59e0b';
+                      return '#22c55e';
+                    };
+                    return (
+                      <div
+                        key={workload.designer}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '16px',
+                          padding: '12px 16px',
+                          background: '#f9fafb',
+                          borderRadius: '10px',
+                        }}
+                      >
+                        <div style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          background: idx === 0 ? '#fbbf24' : idx === 1 ? '#9ca3af' : idx === 2 ? '#d97706' : '#e5e7eb',
+                          color: idx < 3 ? '#fff' : '#6b7280',
+                          fontWeight: 700,
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          {idx + 1}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '6px',
+                          }}>
+                            <span style={{ fontWeight: 600, color: '#1f2937' }}>
+                              👤 {workload.designer}
+                            </span>
+                            <span style={{
+                              fontSize: '14px',
+                              fontWeight: 700,
+                              color: getColor(workload.saturation),
+                            }}>
+                              {workload.saturation.toFixed(0)}%
+                            </span>
+                          </div>
+                          <div style={{
+                            height: '10px',
+                            background: '#e5e7eb',
+                            borderRadius: '5px',
+                            overflow: 'hidden',
+                          }}>
+                            <div
+                              style={{
+                                height: '100%',
+                                width: `${Math.min(workload.saturation, 100)}%`,
+                                background: getColor(workload.saturation),
+                                borderRadius: '5px',
+                                transition: 'width 0.3s',
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right', fontSize: '12px', color: '#6b7280', minWidth: '80px' }}>
+                          <div>{workload.totalTasks} 个任务</div>
+                          <div>{workload.totalHours} 小时</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+              <div className="mt-4 text-muted" style={{ fontSize: '12px' }}>
+                💡 <strong>说明：</strong>负载超过100%表示设计师任务过载，建议合理分配任务或调整排期
+              </div>
+            </div>
+          )}
 
           <div className="card">
             <h3 className="card-title">💡 智能经营建议</h3>

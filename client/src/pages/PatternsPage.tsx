@@ -8,8 +8,11 @@ import {
   FabricPreoccupyRecord,
   FABRIC_PREOCCUPY_STATUS_LABELS,
   FABRIC_PREOCCUPY_STATUS_COLORS,
+  ScheduleCardData,
+  DELAY_RISK_COLORS,
+  DELAY_RISK_LABELS,
 } from '../types';
-import { patternApi, orderApi, dollApi, fabricInventoryApi } from '../api';
+import { patternApi, orderApi, dollApi, fabricInventoryApi, scheduleApi } from '../api';
 
 export default function PatternsPage() {
   const [tasks, setTasks] = useState<PatternTask[]>([]);
@@ -20,6 +23,7 @@ export default function PatternsPage() {
   const [searchDesigner, setSearchDesigner] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [detailTask, setDetailTask] = useState<PatternTask | null>(null);
+  const [detailScheduleCard, setDetailScheduleCard] = useState<ScheduleCardData | null>(null);
   const [preoccupyMap, setPreoccupyMap] = useState<Record<string, FabricPreoccupyRecord[]>>({});
   const [formData, setFormData] = useState<any>({
     orderId: '',
@@ -139,6 +143,21 @@ export default function PatternsPage() {
       ...prev,
       fabricUsage: prev.fabricUsage.filter((_: any, i: number) => i !== idx),
     }));
+  };
+
+  const loadTaskSchedule = async (orderId: string) => {
+    try {
+      const scheduleRes = await scheduleApi.getOrderSchedule(orderId);
+      setDetailScheduleCard(scheduleRes.data);
+    } catch (error) {
+      console.error('获取排期卡片失败:', error);
+      setDetailScheduleCard(null);
+    }
+  };
+
+  const openDetailTask = async (task: PatternTask) => {
+    setDetailTask(task);
+    await loadTaskSchedule(task.orderId);
   };
 
   const updateStatus = async (taskId: string, status: string) => {
@@ -360,7 +379,7 @@ export default function PatternsPage() {
                         <div className="flex gap-2 flex-wrap">
                           <button
                             className="btn btn-sm btn-outline"
-                            onClick={() => setDetailTask(task)}
+                            onClick={() => openDetailTask(task)}
                           >
                             详情
                           </button>
@@ -605,6 +624,72 @@ export default function PatternsPage() {
                   fontWeight: 600,
                 }}>
                   🔄 已返工 {detailTask.reworkCount} 次
+                </div>
+              )}
+
+              {detailScheduleCard && (
+                <div style={{ marginBottom: '20px' }}>
+                  <div className="card-title" style={{ marginBottom: '12px' }}>
+                    📊 排期与交付预测
+                  </div>
+                  <div style={{
+                    padding: '16px',
+                    background: detailScheduleCard.delayRisk === 'high'
+                      ? 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)'
+                      : detailScheduleCard.delayRisk === 'medium'
+                        ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
+                        : 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                    borderRadius: '12px',
+                    border: `2px solid ${DELAY_RISK_COLORS[detailScheduleCard.delayRisk]}40`,
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      marginBottom: '12px',
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>当前阶段</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#1f2937' }}>{detailScheduleCard.currentStage}</div>
+                      </div>
+                      <span
+                        className="badge"
+                        style={{
+                          background: DELAY_RISK_COLORS[detailScheduleCard.delayRisk],
+                          color: 'white',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {DELAY_RISK_LABELS[detailScheduleCard.delayRisk]}
+                      </span>
+                    </div>
+                    <div style={{
+                      fontSize: '13px',
+                      color: '#374151',
+                      fontWeight: 500,
+                      marginBottom: '12px',
+                    }}>
+                      {detailScheduleCard.delayRiskDescription}
+                    </div>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                      gap: '12px',
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '11px', color: '#6b7280' }}>预计完成日期</div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2937' }}>{detailScheduleCard.estimatedCompletionDate}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', color: '#6b7280' }}>约定交付日期</div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#1f2937' }}>{detailScheduleCard.deliveryDate}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '11px', color: '#6b7280' }}>整体进度</div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#6366f1' }}>{detailScheduleCard.progressPercent.toFixed(0)}%</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 

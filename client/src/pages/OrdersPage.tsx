@@ -27,8 +27,13 @@ import {
   FabricPreoccupyRecord,
   FABRIC_PREOCCUPY_STATUS_LABELS,
   FABRIC_PREOCCUPY_STATUS_COLORS,
+  ScheduleCardData,
+  DELAY_RISK_COLORS,
+  DELAY_RISK_LABELS,
+  SCHEDULE_STAGE_COLORS,
+  SCHEDULE_STAGE_LABELS,
 } from '../types';
-import { orderApi, dollApi, communicationApi, changeOrderApi } from '../api';
+import { orderApi, dollApi, communicationApi, changeOrderApi, scheduleApi } from '../api';
 
 const STYLE_OPTIONS = [
   '宫廷风', '复古', '礼服', '汉服', '古风', '男装',
@@ -61,6 +66,7 @@ export default function OrdersPage() {
   const [detailChangeOrders, setDetailChangeOrders] = useState<ChangeOrder[]>([]);
   const [detailPendingChangeCount, setDetailPendingChangeCount] = useState<number>(0);
   const [detailFabricRecords, setDetailFabricRecords] = useState<FabricPreoccupyRecord[]>([]);
+  const [detailScheduleCard, setDetailScheduleCard] = useState<ScheduleCardData | null>(null);
   const [showCommunicationModal, setShowCommunicationModal] = useState<boolean>(false);
   const [showChangeOrderModal, setShowChangeOrderModal] = useState<boolean>(false);
   const [communicationFormData, setCommunicationFormData] = useState<any>({
@@ -376,8 +382,8 @@ export default function OrdersPage() {
 
   const fetchOrderDetail = async (order: Order) => {
     try {
-      const res = await orderApi.getById(order.id);
-      const data = res.data as any;
+      const orderRes = await orderApi.getById(order.id);
+      const data = orderRes.data as any;
       setDetailOrder(data);
       setDetailStageInfo(data.stageInfo || null);
       setDetailStageTimeline(data.stageTimeline || []);
@@ -388,6 +394,14 @@ export default function OrdersPage() {
       setDetailChangeOrders(data.changeOrders || []);
       setDetailPendingChangeCount(data.pendingChangeCount || 0);
       setDetailFabricRecords(data.fabricPreoccupyRecords || []);
+
+      try {
+        const scheduleRes = await scheduleApi.getOrderSchedule(order.id);
+        setDetailScheduleCard(scheduleRes.data);
+      } catch (scheduleError) {
+        console.error('获取排期卡片失败:', scheduleError);
+        setDetailScheduleCard(null);
+      }
     } catch (e) {
       console.error(e);
       setDetailOrder(order);
@@ -400,6 +414,7 @@ export default function OrdersPage() {
       setDetailChangeOrders([]);
       setDetailPendingChangeCount(0);
       setDetailFabricRecords([]);
+      setDetailScheduleCard(null);
     }
   };
 
@@ -983,6 +998,139 @@ export default function OrdersPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+            )}
+
+              {detailScheduleCard && (
+                <div style={{ marginBottom: '22px' }}>
+                  <div className="card-title" style={{ marginBottom: '14px' }}>
+                    📊 排期与交付预测
+                  </div>
+                  <div style={{
+                    padding: '20px',
+                    background: detailScheduleCard.delayRisk === 'high' 
+                      ? 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)'
+                      : detailScheduleCard.delayRisk === 'medium'
+                        ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)'
+                        : 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                    borderRadius: '14px',
+                    border: `2px solid ${DELAY_RISK_COLORS[detailScheduleCard.delayRisk]}40`,
+                    position: 'relative',
+                  }}>
+                    <div style={{
+                      position: 'absolute',
+                      top: '12px',
+                      right: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}>
+                      <span
+                        className="badge"
+                        style={{
+                          background: DELAY_RISK_COLORS[detailScheduleCard.delayRisk],
+                          color: 'white',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {DELAY_RISK_LABELS[detailScheduleCard.delayRisk]}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>当前阶段</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#1f2937' }}>{detailScheduleCard.currentStage}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>下一阶段</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: detailScheduleCard.nextStage ? '#6366f1' : '#9ca3af' }}>
+                          {detailScheduleCard.nextStage || '无'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>预计完成日期</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#1f2937' }}>{detailScheduleCard.estimatedCompletionDate}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>约定交付日期</div>
+                        <div style={{ fontSize: '16px', fontWeight: 700, color: '#1f2937' }}>{detailScheduleCard.deliveryDate}</div>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      padding: '10px 14px',
+                      background: 'rgba(255,255,255,0.6)',
+                      borderRadius: '8px',
+                      marginBottom: '16px',
+                    }}>
+                      <div style={{ fontSize: '13px', color: '#374151', fontWeight: 500 }}>
+                        {detailScheduleCard.delayRiskDescription}
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#374151' }}>整体进度</span>
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#6366f1' }}>{detailScheduleCard.progressPercent.toFixed(0)}%</span>
+                      </div>
+                      <div style={{ height: '10px', background: 'rgba(255,255,255,0.6)', borderRadius: '5px', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            background: 'linear-gradient(90deg, #6366f1, #8b5cf6)',
+                            borderRadius: '5px',
+                            width: `${detailScheduleCard.progressPercent}%`,
+                            transition: 'width 0.3s',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                      gap: '8px',
+                      marginTop: '16px',
+                    }}>
+                      {detailScheduleCard.tasks.map(task => (
+                        <div
+                          key={task.id}
+                          style={{
+                            padding: '10px',
+                            background: 'rgba(255,255,255,0.7)',
+                            borderRadius: '8px',
+                            borderLeft: `4px solid ${SCHEDULE_STAGE_COLORS[task.stage]}`,
+                            opacity: task.progress >= 100 ? 0.6 : 1,
+                          }}
+                        >
+                          <div style={{
+                            fontSize: '11px',
+                            color: 'white',
+                            background: SCHEDULE_STAGE_COLORS[task.stage],
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            display: 'inline-block',
+                            marginBottom: '4px',
+                          }}>
+                            {task.stageLabel}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#374151', marginBottom: '2px' }}>
+                            {task.startDate} ~ {task.endDate}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                            进度：{task.progress.toFixed(0)}%
+                          </div>
+                          {task.isLocked && (
+                            <div style={{ fontSize: '11px', color: '#8b5cf6', marginTop: '2px' }}>🔒 已锁定</div>
+                          )}
+                          {task.isUrgent && (
+                            <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '2px' }}>⚡ 加急</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

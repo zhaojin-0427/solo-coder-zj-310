@@ -540,6 +540,133 @@ export interface FabricInventoryStats {
   delayedOrdersDueToFabric: number;
 }
 
+export type ScheduleStage = 'pattern_making' | 'fitting' | 'fabric_cutting' | 'shipping';
+
+export const SCHEDULE_STAGE_LABELS: Record<ScheduleStage, string> = {
+  pattern_making: '打版',
+  fitting: '试穿',
+  fabric_cutting: '裁料',
+  shipping: '发货',
+};
+
+export const SCHEDULE_STAGE_COLORS: Record<ScheduleStage, string> = {
+  pattern_making: '#8b5cf6',
+  fitting: '#f97316',
+  fabric_cutting: '#06b6d4',
+  shipping: '#6366f1',
+};
+
+export interface ScheduleTask {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  stage: ScheduleStage;
+  stageLabel: string;
+  designer: string;
+  startDate: string;
+  endDate: string;
+  estimatedHours: number;
+  isLocked: boolean;
+  isUrgent: boolean;
+  conflictIds: string[];
+  delayRisk: 'high' | 'medium' | 'low';
+  delayRiskDescription: string;
+  progress: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DesignerWorkload {
+  designer: string;
+  totalTasks: number;
+  totalHours: number;
+  maxHoursPerDay: number;
+  saturation: number;
+  tasks: ScheduleTask[];
+}
+
+export interface CapacityData {
+  date: string;
+  dayOfWeek: string;
+  isHoliday: boolean;
+  holidayName?: string;
+  isWeekend?: boolean;
+  totalAvailableHours: number;
+  totalScheduledHours: number;
+  saturation: number;
+  designers: {
+    designer: string;
+    availableHours: number;
+    scheduledHours: number;
+    saturation: number;
+  }[];
+}
+
+export interface ScheduleConflict {
+  id: string;
+  type: 'overload' | 'overlap' | 'holiday' | 'delivery_risk';
+  typeLabel: string;
+  severity: 'high' | 'medium' | 'low';
+  description: string;
+  taskIds: string[];
+  date: string;
+}
+
+export interface ScheduleData {
+  tasks: ScheduleTask[];
+  designerWorkloads: DesignerWorkload[];
+  capacityNext7Days: CapacityData[];
+  conflicts: ScheduleConflict[];
+  avgCycleDays: number;
+  urgentOrdersCount: number;
+  atRiskOrdersCount: number;
+}
+
+export interface ScheduleCardData {
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  deliveryDate: string;
+  currentStage: string;
+  nextStage?: string;
+  estimatedCompletionDate: string;
+  delayRisk: 'high' | 'medium' | 'low';
+  delayRiskDescription: string;
+  progressPercent: number;
+  tasks: ScheduleTask[];
+}
+
+export interface ScheduleSummary {
+  totalTasks: number;
+  lockedTasks: number;
+  urgentTasks: number;
+  highRiskTasks: number;
+  mediumRiskTasks: number;
+  todayTasks: ScheduleTask[];
+  avgCycleDays: number;
+  urgentOrdersCount: number;
+  atRiskOrdersCount: number;
+}
+
+export const DELAY_RISK_COLORS: Record<string, string> = {
+  high: '#ef4444',
+  medium: '#f59e0b',
+  low: '#22c55e',
+};
+
+export const DELAY_RISK_LABELS: Record<string, string> = {
+  high: '高风险',
+  medium: '中风险',
+  low: '低风险',
+};
+
+export interface Designer {
+  name: string;
+  maxHoursPerDay: number;
+  skills: string[];
+}
+
 export interface Order {
   id: string;
   orderNumber: string;

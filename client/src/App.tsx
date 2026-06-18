@@ -5,6 +5,7 @@ import PatternsPage from './pages/PatternsPage';
 import FittingsPage from './pages/FittingsPage';
 import StatsPage from './pages/StatsPage';
 import FabricInventoryPage from './pages/FabricInventoryPage';
+import SchedulePage from './pages/SchedulePage';
 
 export default function App() {
   return (
@@ -38,6 +39,10 @@ export default function App() {
             <span className="icon">🧵</span>
             <span>布料库存</span>
           </NavLink>
+          <NavLink to="/schedule" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
+            <span className="icon">📅</span>
+            <span>订单排期</span>
+          </NavLink>
           <NavLink to="/stats" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
             <span className="icon">📊</span>
             <span>数据统计</span>
@@ -55,6 +60,7 @@ export default function App() {
           <Route path="/patterns" element={<PatternsPage />} />
           <Route path="/fittings" element={<FittingsPage />} />
           <Route path="/fabric-inventory" element={<FabricInventoryPage />} />
+          <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/stats" element={<StatsPage />} />
         </Routes>
       </main>

@@ -338,3 +338,142 @@ export interface FabricInventoryStats {
   inventoryValue: number;
   turnoverRate: number;
 }
+
+export type ScheduleStage = 'pattern_making' | 'fitting' | 'fabric_cutting' | 'shipping';
+
+export const SCHEDULE_STAGE_LABELS: Record<ScheduleStage, string> = {
+  pattern_making: '打版',
+  fitting: '试穿',
+  fabric_cutting: '裁料',
+  shipping: '发货',
+};
+
+export const SCHEDULE_STAGE_COLORS: Record<ScheduleStage, string> = {
+  pattern_making: '#8b5cf6',
+  fitting: '#f97316',
+  fabric_cutting: '#06b6d4',
+  shipping: '#6366f1',
+};
+
+export interface ScheduleTask {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  stage: ScheduleStage;
+  stageLabel: string;
+  designer: string;
+  startDate: string;
+  endDate: string;
+  estimatedHours: number;
+  isLocked: boolean;
+  isUrgent: boolean;
+  conflictIds: string[];
+  delayRisk: 'high' | 'medium' | 'low';
+  delayRiskDescription: string;
+  progress: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DesignerWorkload {
+  designer: string;
+  totalTasks: number;
+  totalHours: number;
+  maxHoursPerDay: number;
+  saturation: number;
+  tasks: ScheduleTask[];
+}
+
+export interface CapacityData {
+  date: string;
+  dayOfWeek: string;
+  isHoliday: boolean;
+  holidayName?: string;
+  totalAvailableHours: number;
+  totalScheduledHours: number;
+  saturation: number;
+  designers: {
+    designer: string;
+    availableHours: number;
+    scheduledHours: number;
+    saturation: number;
+  }[];
+}
+
+export interface ScheduleConflict {
+  id: string;
+  type: 'overload' | 'overlap' | 'holiday' | 'delivery_risk';
+  typeLabel: string;
+  severity: 'high' | 'medium' | 'low';
+  description: string;
+  taskIds: string[];
+  date: string;
+}
+
+export interface ScheduleData {
+  tasks: ScheduleTask[];
+  designerWorkloads: DesignerWorkload[];
+  capacityNext7Days: CapacityData[];
+  conflicts: ScheduleConflict[];
+  avgCycleDays: number;
+  urgentOrdersCount: number;
+  atRiskOrdersCount: number;
+}
+
+export interface Holiday {
+  date: string;
+  name: string;
+}
+
+export const HOLIDAYS: Holiday[] = [
+  { date: '2026-01-01', name: '元旦' },
+  { date: '2026-02-16', name: '春节' },
+  { date: '2026-02-17', name: '春节' },
+  { date: '2026-02-18', name: '春节' },
+  { date: '2026-04-04', name: '清明节' },
+  { date: '2026-05-01', name: '劳动节' },
+  { date: '2026-06-19', name: '端午节' },
+  { date: '2026-10-01', name: '国庆节' },
+  { date: '2026-10-02', name: '国庆节' },
+  { date: '2026-10-03', name: '国庆节' },
+  { date: '2026-10-04', name: '国庆节' },
+  { date: '2026-10-05', name: '国庆节' },
+  { date: '2026-10-06', name: '国庆节' },
+  { date: '2026-10-07', name: '国庆节' },
+];
+
+export const STAGE_ESTIMATED_DAYS: Record<ScheduleStage, number> = {
+  pattern_making: 3,
+  fabric_cutting: 1,
+  fitting: 2,
+  shipping: 1,
+};
+
+export const STAGE_ORDER: ScheduleStage[] = ['pattern_making', 'fabric_cutting', 'fitting', 'shipping'];
+
+export interface Designer {
+  name: string;
+  maxHoursPerDay: number;
+  skills: string[];
+}
+
+export const DESIGNERS: Designer[] = [
+  { name: '张设计师', maxHoursPerDay: 8, skills: ['打版', '试穿', '裁料'] },
+  { name: '李设计师', maxHoursPerDay: 8, skills: ['打版', '试穿'] },
+  { name: '王裁缝', maxHoursPerDay: 8, skills: ['裁料', '缝制'] },
+];
+
+export interface ScheduleCardData {
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  deliveryDate: string;
+  currentStage: string;
+  nextStage?: string;
+  estimatedCompletionDate: string;
+  delayRisk: 'high' | 'medium' | 'low';
+  delayRiskDescription: string;
+  progressPercent: number;
+  tasks: ScheduleTask[];
+}
